@@ -1,0 +1,12 @@
+/.eggs
+/build
+/dist
+/.cache
+/.idea
+.coverage
+.python-version
+*.pyc
+*.egg-info
+/*.json
+__pycache__
+.DS_Store
