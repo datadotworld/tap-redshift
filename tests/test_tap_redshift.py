@@ -19,7 +19,6 @@ def get_test_db_connection():
     credentials['user'] = os.environ.get('SINGER_TAP_REDSHIFT_TEST_DB_USER')
     credentials['password'] = os.environ.get('SINGER_TAP_REDSHIFT_TEST_DB_PASSWORD')
     credentials['port'] = os.environ.get('SINGER_TAP_REDSHIFT_TEST_DB_PORT')
-    print(credentials)
     con = psycopg2.connect(**credentials)
 
     try:
