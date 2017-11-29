@@ -1,71 +1,154 @@
-import os
-import psycopg2
-import singer
 import tap_redshift
-from singer.schema import Schema
-from pytest_postgresql import factories
+import mock
+from mock import patch
 
 import pytest
-from doublex import assert_that, called, Stub
-from hamcrest import has_entries, equal_to, not_none, only_contains, none
+from doublex import assert_that, called
+from hamcrest import has_key, equal_to
 
-DB_NAME = 'tap_redshift_test'
+sample_db_data = {
+    "name": "account_address",
+    "columns": [
+        {
+            "type": "int4",
+            "pos": 1,
+            "name": "id"
+        },
+        {
+            "type": "bool",
+            "pos": 2,
+            "name": "verified"
+        },
+        {
+            "type": "float",
+            "pos": 3,
+            "name": "coord"
+        },
+        {
+            "type": "decimal",
+            "pos": 4,
+            "name": "cost"
+        },
+        {
+            "type": "varchar",
+            "pos": 5,
+            "name": "email"
+        },
+        {
+            'type': 'date',
+            'pos': 6,
+            'name': 'date_created'
+        }
+    ]
+}
 
+expected_result = {
+    'streams': [{
+        'database_name': 'FakeDB',
+        'schema': {
+            'type': 'object',
+            'properties': {
+                'id': {
+                    'minimum': -2147483648,
+                    'type': [
+                        'null',
+                        'integer'
+                    ],
+                    'maximum': 2147483647
+                },
+                'is_bool': {
+                    'type': [
+                        'null',
+                        'boolean'
+                    ],
+                },
+                'float': {
+                    'type': [
+                        'null',
+                        'number'
+                    ]
+                },
+                'decimal': {
+                    'type': [
+                        'null',
+                        'number'
+                    ],
+                    'exclusiveMaximum': True
+                },
+                'varchar': {
+                    'type': [
+                        'null',
+                        'string'
+                    ]
+                },
+                "expires_at": {
+                    "type": [
+                        "null",
+                        "string"
+                    ],
+                    'format': 'date-time'
+                }
+            },
+            'table_name': 'fake name',
+            'stream': 'fake stream',
+            'tap_stream_id': 'FakeDB-fake name'
+        }
+    }]}
 
-@pytest.fixture
-def get_test_db_connection():
-    credentials = {}
-    credentials['host'] = os.environ.get('SINGER_TAP_REDSHIFT_TEST_DB_HOST')
-    credentials['user'] = os.environ.get('SINGER_TAP_REDSHIFT_TEST_DB_USER')
-    credentials['password'] = os.environ.get('SINGER_TAP_REDSHIFT_TEST_DB_PASSWORD')
-    credentials['port'] = os.environ.get('SINGER_TAP_REDSHIFT_TEST_DB_PORT')
-    con = psycopg2.connect(**credentials)
+@pytest.fixture()
+def db_config():
+    config = {
+        'host':'host',
+        'port':'',
+        'dbname':'FakeDB',
+        'user':'user',
+        'password':'password'
+    }
+    return config
 
-    try:
-        with con.cursor() as cur:
-            try:
-                cur.execute('DROP DATABASE {}'.format(DB_NAME))
-            except:
-                pass
-            cur.execute('CREATE DATABASE {}'.format(DB_NAME))
-    finally:
-        con.close()
+class TestRedShiftTap(object):
+    @mock.patch("psycopg2.connect")
+    def test_discover_catalog(self, mock_connect, db_config):
+        mock_con = mock_connect.return_value
+        mock_cur = mock_con.cursor.return_value
+        mock_cur.fetchall.return_value = expected_result
+        result = tap_redshift.discover_catalog(mock=db_config).to_dict()
+        assert_that(result, has_key(equal_to('streams')))
+        streams = result['streams'][0]
+        assert_that(streams, has_key(equal_to('schema')))
 
-    creds['dbname'] = DB_NAME
+    def test_type_int4(self):
+        col = sample_db_data['columns'][0]
+        column_schema = tap_redshift.schema_for_column(col).to_dict()
+        expected_schema = expected_result['streams'][0]['schema']['properties']['id']
+        assert_that(column_schema, equal_to(expected_schema))
 
-    return psycopg2.connect(**creds)
+    def test_type_bool(self):
+        col = sample_db_data['columns'][1]
+        column_schema = tap_redshift.schema_for_column(col).to_dict()
+        expected_schema = expected_result['streams'][0]['schema']['properties']['is_bool']
+        assert_that(column_schema, equal_to(expected_schema))
 
-@pytest.fixture
-def discover_catalog(connection):
-    catalog = tap_redshift.discover_catalog(connection)
-    catalog.streams = [s for s in catalog.streams if s.database == DB_NAME]
-    return catalog
+    def test_type_float(self):
+        col = sample_db_data['columns'][2]
+        column_schema = tap_redshift.schema_for_column(col).to_dict()
+        expected_schema = expected_result['streams'][0]['schema']['properties']['float']
+        assert_that(column_schema, equal_to(expected_schema))
 
+    def test_type_decimal(self):
+        col = sample_db_data['columns'][3]
+        column_schema = tap_redshift.schema_for_column(col).to_dict()
+        expected_schema = expected_result['streams'][0]['schema']['properties']['decimal']
+        assert_that(column_schema, equal_to(expected_schema))
 
-class TestTypeMapping(object):
+    def test_type_varchar(self):
+        col = sample_db_data['columns'][4]
+        column_schema = tap_redshift.schema_for_column(col).to_dict()
+        expected_schema = expected_result['streams'][0]['schema']['properties']['varchar']
+        assert_that(column_schema, equal_to(expected_schema))
 
-    @pytest.fixture
-    def connection(self, get_test_db_connection, discover_catalog):
-        con = get_test_db_connection()
-
-        with con.cursor() as cur:
-            cur.execute('''
-            CREATE TABLE test_type_mapping (
-            c_int4 INT,
-            c_int2 INT,
-            c_date DATE,
-            )''')
-
-            catalog = discover_catalog(con)
-            schema = catalog.streams[0].schema
-
-
-    def test_smallint(self, connection):
-        assert_that(schema.properties['c_int2'],
-                         has_entries(Schema(['null', 'integer'],
-                                minimum=-32768,
-                                maximum=32767)))
-
-
-
-
+    def test_type_date(self):
+        col = sample_db_data['columns'][5]
+        column_schema = tap_redshift.schema_for_column(col).to_dict()
+        expected_schema = expected_result['streams'][0]['schema']['properties']['expires_at']
+        assert_that(column_schema, equal_to(expected_schema))
