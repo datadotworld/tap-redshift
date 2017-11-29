@@ -38,17 +38,24 @@ FLOAT_TYPES = set(['float', 'double'])
 DATETIME_TYPES = set(['datetime', 'timestamptz', 'date', 'time'])
 
 
-def discover_catalog(connection):
+def discover_catalog(**kwargs):
     '''Returns a Catalog describing the structure of the database.'''
-    args = utils.parse_args(REQUIRED_CONFIG_KEYS)
-    dbname = args.config['dbname']
-    column_specs = select_all(connection, """
+
+    # For testing purpose
+    if kwargs:
+        args = kwargs.get('mock')
+        dbname = args['dbname']
+    else:
+        args = utils.parse_args(REQUIRED_CONFIG_KEYS)
+        dbname = args.config['dbname']
+
+    column_specs = select_all("""
         SELECT c.table_name, c.ordinal_position, c.column_name, c.udt_name
         FROM INFORMATION_SCHEMA.Tables t
         JOIN INFORMATION_SCHEMA.Columns c ON c.table_name = t.table_name
         WHERE t.table_schema = 'public'
         ORDER BY c.table_name, c.ordinal_position
-    """)
+    """, **kwargs)
 
     entries = []
     table = [{'name': k, 'columns': [
@@ -73,8 +80,8 @@ def discover_catalog(connection):
     return Catalog(entries)
 
 
-def do_discover(connection):
-    discover_catalog(connection).dump()
+def do_discover():
+    discover_catalog().dump()
 
 
 def schema_for_column(c):
@@ -114,17 +121,36 @@ def schema_for_column(c):
     return result
 
 
-def open_connection(config):
+def open_connection(**kwargs):
+
+    # For testing purpose
+    if kwargs:
+        args = kwargs.get('mock')
+        host = args['host'],
+        port = args['port'],
+        dbname = args['dbname'],
+        user = args['user'],
+        password = args['password']
+    else:
+        args = utils.parse_args(REQUIRED_CONFIG_KEYS)
+        config = args.config
+        host = config['host'],
+        port = config['port'],
+        dbname = config['dbname'],
+        user = config['user'],
+        password = config['password']
+
     connection = psycopg2.connect(
-            host=config['host'],
-            port=config['port'],
-            dbname=config['dbname'],
-            user=config['user'],
-            password=config['password'])
+            host=host[0],
+            port=port[0],
+            dbname=dbname[0],
+            user=user[0],
+            password=password)
     return connection
 
 
-def select_all(conn, query):
+def select_all(query, **kwargs):
+    conn = open_connection(**kwargs)
     cur = conn.cursor()
     cur.execute(query)
     column_specs = cur.fetchall()
@@ -134,10 +160,9 @@ def select_all(conn, query):
 
 def main():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
-    connection = open_connection(args.config)
 
     if args.discover:
-        do_discover(connection)
+        do_discover()
 
 
 if __name__ == '__main__':
