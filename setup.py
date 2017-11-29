@@ -57,7 +57,7 @@ setup(
         'pytest-runner>=2.11,<3.0a',
       ],
       tests_require=[
-        'pytest-postgresql==1.3.1',
+        'pytest-mock>=1.6.3',
         'coverage>=4.4.2',
         'doublex>=1.8.4,<2.0a',
         'flake8>=2.6.0,<3.4.1a',

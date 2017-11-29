@@ -1,5 +1,2 @@
 test:
-	SINGER_TAP_REDSHIFT_TEST_DB_HOST=localhost \
-	SINGER_TAP_REDSHIFT_TEST_DB_USER=root \
-	SINGER_TAP_REDSHIFT_TEST_DB_PORT="" \
-	SINGER_TAP_REDSHIFT_TEST_DB_PASSWORD="" python setup.py test
+	python setup.py test
