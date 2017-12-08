@@ -1,6 +1,7 @@
 import psycopg2
 from itertools import groupby
 
+import singer
 from singer import utils
 from singer.schema import Schema
 from singer.catalog import Catalog, CatalogEntry
@@ -37,6 +38,8 @@ FLOAT_TYPES = set(['float', 'double'])
 
 DATETIME_TYPES = set(['datetime', 'timestamptz', 'date', 'time'])
 
+LOGGER = singer.get_logger()
+
 
 def discover_catalog(**kwargs):
     '''Returns a Catalog describing the structure of the database.'''
@@ -62,26 +65,31 @@ def discover_catalog(**kwargs):
                 {'pos': t[1], 'name': t[2], 'type': t[3]} for t in v]}
              for k, v in groupby(column_specs, key=lambda t: t[0])]
 
-    for items in table:
-        table_name = items['name']
-        cols = items['columns']
-        schema = Schema(type='object',
-                        properties={
-                            c['name']: schema_for_column(c) for c in cols})
-        tap_stream_id = '{}-{}'.format(dbname, table_name)
-        entry = CatalogEntry(
-                    database=dbname,
-                    tap_stream_id=tap_stream_id,
-                    stream=table_name,
-                    schema=schema,
-                    table=table_name)
-    entries.append(entry)
-
-    return Catalog(entries)
+    if table:
+        for items in table:
+            table_name = items['name']
+            cols = items['columns']
+            schema = Schema(type='object',
+                            properties={
+                                c['name']: schema_for_column(c) for c in cols})
+            tap_stream_id = '{}-{}'.format(dbname, table_name)
+            entry = CatalogEntry(
+                        database=dbname,
+                        tap_stream_id=tap_stream_id,
+                        stream=table_name,
+                        schema=schema,
+                        table=table_name)
+        entries.append(entry)
+        return Catalog(entries)
+    else:
+        LOGGER.warning('No tables found in %s.', dbname)
 
 
 def do_discover():
-    discover_catalog().dump()
+    try:
+        discover_catalog().dump()
+    except AttributeError:
+        LOGGER.warning('No catalog entries found')
 
 
 def schema_for_column(c):
