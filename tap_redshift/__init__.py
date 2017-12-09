@@ -79,7 +79,7 @@ def discover_catalog(**kwargs):
                         stream=table_name,
                         schema=schema,
                         table=table_name)
-        entries.append(entry)
+            entries.append(entry)
         return Catalog(entries)
     else:
         LOGGER.warning('No tables found in %s.', dbname)
