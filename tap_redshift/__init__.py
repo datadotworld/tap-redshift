@@ -329,8 +329,11 @@ def generate_messages(catalog, state):
             key_properties=catalog_entry.key_properties)
 
         # Emit a RECORD message for each record in the result set
-        for message in sync_table(con, catalog_entry, state):
-            yield message
+        with metrics.job_timer('sync_table') as timer:
+            timer.tags['database'] = catalog_entry.database
+            timer.tags['table'] = catalog_entry.table
+            for message in sync_table(con, catalog_entry, state):
+                yield message
 
     # If we get here, we've finished processing all the streams, so clear
     # currently_syncing from the state and emit a state message.
@@ -339,7 +342,6 @@ def generate_messages(catalog, state):
 
 
 def do_sync(catalog, state):
-    con = open_connection()
     for message in generate_messages(catalog, state):
         singer.write_message(message)
 
@@ -391,7 +393,7 @@ def build_state(raw_state, catalog):
     return state
 
 
-def main():
+def main_impl():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
 
     if args.discover:
@@ -405,6 +407,14 @@ def main():
         do_sync(catalog, state)
     else:
         LOGGER.info("No properties were selected")
+
+
+def main():
+    try:
+        main_impl()
+    except Exception as exc:
+        LOGGER.critical(exc)
+        raise exc
 
 
 if __name__ == '__main__':

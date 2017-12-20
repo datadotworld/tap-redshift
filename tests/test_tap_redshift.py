@@ -1,13 +1,10 @@
 import tap_redshift
 import mock
-from mock import patch
 
 import pytest
-from doublex import assert_that, called
+from doublex import assert_that
 from hamcrest import has_key, equal_to
 
-import singer
-from singer.schema import Schema
 
 sample_db_data = {
     "name": "account_address",
@@ -104,26 +101,18 @@ expected_result = {
         }
     }]}
 
+
 @pytest.fixture()
 def db_config():
     config = {
-        'host':'host',
-        'port':'',
-        'dbname':'FakeDB',
-        'user':'user',
-        'password':'password'
+        'host': 'host',
+        'port': '',
+        'dbname': 'FakeDB',
+        'user': 'user',
+        'password': 'password'
     }
     return config
 
-def message_types_and_versions(messages):
-    message_types = []
-    versions = []
-    for message in messages:
-        t = type(message)
-        if t in set([singer.RecordMessage, singer.ActivateVersionMessage]):
-            message_types.append(t.__name__)
-            versions.append(message.version)
-    return (message_types, versions)
 
 class TestRedShiftTap(object):
     @mock.patch("psycopg2.connect")
@@ -139,35 +128,41 @@ class TestRedShiftTap(object):
     def test_type_int4(self):
         col = sample_db_data['columns'][0]
         column_schema = tap_redshift.schema_for_column(col).to_dict()
-        expected_schema = expected_result['streams'][0]['schema']['properties']['id']
+        ppt = expected_result['streams'][0]['schema']['properties']['id']
+        expected_schema = ppt
         assert_that(column_schema, equal_to(expected_schema))
 
     def test_type_bool(self):
         col = sample_db_data['columns'][1]
         column_schema = tap_redshift.schema_for_column(col).to_dict()
-        expected_schema = expected_result['streams'][0]['schema']['properties']['is_bool']
+        stream_schema = expected_result['streams'][0]
+        expected_schema = stream_schema['schema']['properties']['is_bool']
         assert_that(column_schema, equal_to(expected_schema))
 
     def test_type_float(self):
         col = sample_db_data['columns'][2]
         column_schema = tap_redshift.schema_for_column(col).to_dict()
-        expected_schema = expected_result['streams'][0]['schema']['properties']['float']
+        stream_schema = expected_result['streams'][0]
+        expected_schema = stream_schema['schema']['properties']['float']
         assert_that(column_schema, equal_to(expected_schema))
 
     def test_type_decimal(self):
         col = sample_db_data['columns'][3]
         column_schema = tap_redshift.schema_for_column(col).to_dict()
-        expected_schema = expected_result['streams'][0]['schema']['properties']['decimal']
+        stream_schema = expected_result['streams'][0]
+        expected_schema = stream_schema['schema']['properties']['decimal']
         assert_that(column_schema, equal_to(expected_schema))
 
     def test_type_varchar(self):
         col = sample_db_data['columns'][4]
         column_schema = tap_redshift.schema_for_column(col).to_dict()
-        expected_schema = expected_result['streams'][0]['schema']['properties']['varchar']
+        stream_schema = expected_result['streams'][0]
+        expected_schema = stream_schema['schema']['properties']['varchar']
         assert_that(column_schema, equal_to(expected_schema))
 
     def test_type_date(self):
         col = sample_db_data['columns'][5]
         column_schema = tap_redshift.schema_for_column(col).to_dict()
-        expected_schema = expected_result['streams'][0]['schema']['properties']['expires_at']
+        stream_schema = expected_result['streams'][0]
+        expected_schema = stream_schema['schema']['properties']['expires_at']
         assert_that(column_schema, equal_to(expected_schema))

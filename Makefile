@@ -1,2 +1,2 @@
 test:
-	python setup.py test
+	coverage run setup.py test
