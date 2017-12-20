@@ -47,9 +47,9 @@ setup(
       py_modules=['tap-redshift'],
       packages=find_packages(),
       install_requires=[
-        'attrs==16.3.0',
+        'attrs==17.2.0',
         'pendulum==1.2.0',
-        'singer-python==4.0.3',
+        'singer-python==5.0.2',
         'backoff==1.3.2',
         'psycopg2==2.7.3.2',
       ],
@@ -58,6 +58,7 @@ setup(
       ],
       tests_require=[
         'pytest-mock>=1.6.3',
+        'mock>=2.0.0',
         'coverage>=4.4.2',
         'doublex>=1.8.4,<2.0a',
         'flake8>=2.6.0,<3.4.1a',

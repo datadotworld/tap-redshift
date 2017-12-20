@@ -6,6 +6,9 @@ import pytest
 from doublex import assert_that, called
 from hamcrest import has_key, equal_to
 
+import singer
+from singer.schema import Schema
+
 sample_db_data = {
     "name": "account_address",
     "columns": [
@@ -54,39 +57,45 @@ expected_result = {
                         'null',
                         'integer'
                     ],
-                    'maximum': 2147483647
+                    'maximum': 2147483647,
+                    'inclusion': 'available'
                 },
                 'is_bool': {
                     'type': [
                         'null',
                         'boolean'
                     ],
+                    'inclusion': 'available'
                 },
                 'float': {
                     'type': [
                         'null',
                         'number'
-                    ]
+                    ],
+                    'inclusion': 'available'
                 },
                 'decimal': {
                     'type': [
                         'null',
                         'number'
                     ],
-                    'exclusiveMaximum': True
+                    'exclusiveMaximum': True,
+                    'inclusion': 'available'
                 },
                 'varchar': {
                     'type': [
                         'null',
                         'string'
-                    ]
+                    ],
+                    'inclusion': 'available'
                 },
                 "expires_at": {
                     "type": [
                         "null",
                         "string"
                     ],
-                    'format': 'date-time'
+                    'format': 'date-time',
+                    'inclusion': 'available'
                 }
             },
             'table_name': 'fake name',
@@ -105,6 +114,16 @@ def db_config():
         'password':'password'
     }
     return config
+
+def message_types_and_versions(messages):
+    message_types = []
+    versions = []
+    for message in messages:
+        t = type(message)
+        if t in set([singer.RecordMessage, singer.ActivateVersionMessage]):
+            message_types.append(t.__name__)
+            versions.append(message.version)
+    return (message_types, versions)
 
 class TestRedShiftTap(object):
     @mock.patch("psycopg2.connect")
