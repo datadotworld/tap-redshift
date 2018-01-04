@@ -1,0 +1,43 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: dataworld/pyenv-tox
+
+    working_directory: /root/tap-redshift
+
+    environment:
+      PRERELEASE_BRANCH: prerelease
+      RELEASE_BRANCH: release
+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - tox_cache-{{ checksum "tox.ini" }}
+      - run:
+          name: pyenv setup
+          command: |
+            pyenv local 3.6.0
+      - run:
+          name: tox
+          command: tox --pre
+      - save_cache:
+          key: tox_cache-{{ checksum "tox.ini" }}
+          paths:
+            - .eggs
+            - .tox
+
+      - deploy:
+          name: Pre-release to pypi
+          command: |
+            if [[ "${CIRCLE_BRANCH}" =~ ^(${PRERELEASE_BRANCH})$ ]]; then
+              echo 'Do a prerelease with twine here'
+            fi
+      - deploy:
+          name: Release to pypi
+          command: |
+            if [[ "${CIRCLE_BRANCH}" =~ ^(${RELEASE_BRANCH})$ ]]; then
+              python setup.py sdist bdist_wheel --universal
+              twine upload -u $PYPI_USERNAME -p $PYPI_PASSWORD dist/*
+            fi
