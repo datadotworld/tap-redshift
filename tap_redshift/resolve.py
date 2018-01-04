@@ -84,7 +84,9 @@ def resolve_catalog(con, discovered, catalog, state):
             database=catalog_entry.database,
             table=catalog_entry.table,
             is_view=catalog_entry.is_view,
-            schema=schema
+            schema=schema,
+            replication_key=catalog_entry.replication_key,
+            key_properties=catalog_entry.key_properties
         ))
 
     return result

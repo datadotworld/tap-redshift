@@ -1,4 +1,4 @@
-# data.world-py
+# tap-redshift
 # Copyright 2017 data.world, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

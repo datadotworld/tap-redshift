@@ -11,8 +11,9 @@ import singer.metrics as metrics
 from singer import utils
 from singer.schema import Schema
 from singer.catalog import Catalog, CatalogEntry
+from singer import metadata
 
-from . import resolve
+from tap_redshift import resolve
 
 
 __version__ = '1.0.0'
@@ -29,24 +30,25 @@ REQUIRED_CONFIG_KEYS = [
 
 STRING_TYPES = set([
     'char',
-    'enum',
-    'longtext',
-    'mediumtext',
+    'character',
+    'nchar',
+    'bpchar',
     'text',
-    'varchar'
+    'varchar',
+    'character varying',
+    'nvarchar'
 ])
 
 BYTES_FOR_INTEGER_TYPE = {
-    'tinyint': 1,
     'int2': 2,
-    'mediumint': 3,
+    'int': 4,
     'int4': 4,
     'int8': 8
 }
 
-FLOAT_TYPES = set(['float', 'double'])
+FLOAT_TYPES = set(['float', 'float4', 'float8'])
 
-DATETIME_TYPES = set(['datetime', 'timestamptz', 'date', 'time'])
+DATETIME_TYPES = set(['timestamp', 'timestamptz', 'date'])
 
 
 def discover_catalog(**kwargs):
@@ -59,24 +61,26 @@ def discover_catalog(**kwargs):
     else:
         args = utils.parse_args(REQUIRED_CONFIG_KEYS)
         dbname = args.config['dbname']
+        table_schema = args.config['table_schema'] or 'public'
 
     table_spec = select_all("""
-       SELECT table_type, table_name
-       FROM INFORMATION_SCHEMA.Tables
-       WHERE table_schema = 'public'
-    """, **kwargs)
+        SELECT table_type, table_name
+        FROM INFORMATION_SCHEMA.Tables
+        WHERE table_schema = '{}'
+        """.format(table_schema), **kwargs)
 
     column_specs = select_all("""
-        SELECT c.table_name, c.ordinal_position, c.column_name, c.udt_name
+        SELECT c.table_name, c.ordinal_position, c.column_name, c.udt_name,
+        c.is_nullable
         FROM INFORMATION_SCHEMA.Tables t
         JOIN INFORMATION_SCHEMA.Columns c ON c.table_name = t.table_name
-        WHERE t.table_schema = 'public'
-        ORDER BY c.table_name, c.ordinal_position
-    """, **kwargs)
+        WHERE t.table_schema = '{}'
+        ORDER BY c.table_name, c.ordinal_position""".format(table_schema),
+        **kwargs)
 
     entries = []
     column = [{'name': k, 'columns': [
-                {'pos': t[1], 'name': t[2], 'type': t[3]} for t in v]}
+                {'pos': t[1], 'name': t[2], 'type': t[3], 'nullable': t[4]} for t in v]}
               for k, v in groupby(column_specs, key=lambda t: t[0])]
 
     for items in column:
@@ -85,13 +89,22 @@ def discover_catalog(**kwargs):
         schema = Schema(type='object',
                         properties={
                             c['name']: schema_for_column(c) for c in cols})
+        metadata = create_column_metadata(cols)
         tap_stream_id = '{}-{}'.format(dbname, table_name)
         entry = CatalogEntry(
                     database=dbname,
                     tap_stream_id=tap_stream_id,
                     stream=table_name,
                     schema=schema,
-                    table=table_name)
+                    table=table_name,
+                    metadata=metadata)
+        column_is_key_prop = lambda c, s: (
+            s.properties[c['name']].inclusion != 'unsupported'
+        )
+        key_properties = [c['name'] for c in cols if column_is_key_prop(c, schema)]
+        if key_properties:
+            entry.key_properties = key_properties
+
         table_type = [t for (t) in table_spec]
         entry.is_view = table_type == 'VIEW'
         entries.append(entry)
@@ -106,31 +119,31 @@ def do_discover():
 def schema_for_column(c):
     '''Returns the Schema object for the given Column.'''
     column_type = c['type'].lower()
+    column_nullable = c['nullable'].lower()
     inclusion = 'available'
-
     result = Schema(inclusion=inclusion)
 
     if column_type == 'bool':
-        result.type = ['null', 'boolean']
+        result.type = 'boolean'
 
     elif column_type in BYTES_FOR_INTEGER_TYPE:
-        result.type = ['null', 'integer']
+        result.type = 'integer'
         bits = BYTES_FOR_INTEGER_TYPE[column_type] * 8
         result.minimum = 0 - 2 ** (bits - 1)
         result.maximum = 2 ** (bits - 1) - 1
 
     elif column_type in FLOAT_TYPES:
-        result.type = ['null', 'number']
+        result.type = 'number'
 
-    elif column_type == 'decimal':
-        result.type = ['null', 'number']
+    elif column_type == 'numeric':
+        result.type = 'number'
         result.exclusiveMaximum = True
 
     elif column_type in STRING_TYPES:
-        result.type = ['null', 'string']
+        result.type = 'string'
 
     elif column_type in DATETIME_TYPES:
-        result.type = ['null', 'string']
+        result.type = 'string'
         result.format = 'date-time'
 
     else:
@@ -139,7 +152,27 @@ def schema_for_column(c):
                         description='Unsupported column type {}'
                         .format(column_type))
 
+    if column_nullable == 'yes':
+        result.type = ['null', result.type]
+
     return result
+
+
+def create_column_metadata(cols):
+    mdata = {}
+    mdata = metadata.write(mdata, (), 'selected-by-default', False)
+    for c in cols:
+        schema = schema_for_column(c)
+        mdata = metadata.write(mdata,
+                               ('properties', c['name']),
+                               'selected-by-default',
+                               schema.inclusion != 'unsupported')
+        mdata = metadata.write(mdata,
+                               ('properties', c['name']),
+                               'sql-datatype',
+                               c['type'].lower())
+
+    return metadata.to_list(mdata)
 
 
 def open_connection(**kwargs):
@@ -188,25 +221,7 @@ def get_stream_version(tap_stream_id, state):
 def row_to_record(catalog_entry, version, row, columns, time_extracted):
     row_to_persist = ()
     for idx, elem in enumerate(row):
-        property_type = catalog_entry.schema.properties[columns[idx]].type
-        if isinstance(elem, datetime.datetime):
-            row_to_persist += (elem.isoformat() + "+00:00",)
-        elif isinstance(elem, datetime.date):
-            row_to_persist += (elem.isoformat() + "T00:00:00+00:00",)
-        elif isinstance(elem, datetime.timedelta):
-            epoch = datetime.datetime.utcfromtimestamp(0)
-            timedelta_from_epoch = epoch + elem
-            row_to_persist += (timedelta_from_epoch.isoformat() + "+00:00",)
-        elif isinstance(elem, bytes):
-            # for BIT value, treat 0 as False and anything else as True
-            boolean_representation = elem != b'\x00'
-            row_to_persist += (boolean_representation,)
-        elif 'boolean' in property_type or property_type == 'boolean':
-            # for TINYINT(1) value, treat 0 as False and anything else as True
-            boolean_representation = elem != 0
-            row_to_persist += (boolean_representation,)
-        else:
-            row_to_persist += (elem,)
+        row_to_persist += (elem,)
     return singer.RecordMessage(
         stream=catalog_entry.stream,
         record=dict(zip(columns, row_to_persist)),
@@ -238,7 +253,7 @@ def sync_table(connection, catalog_entry, state):
                                               tap_stream_id,
                                               'replication_key')
 
-        bookmark_is_empty = not state.get('bookmarks', {}).get(tap_stream_id)
+        bookmark_is_empty = state.get('bookmarks', {}).get(tap_stream_id) is None
 
         stream_version = get_stream_version(tap_stream_id, state)
         state = singer.write_bookmark(state,
@@ -259,7 +274,7 @@ def sync_table(connection, catalog_entry, state):
         if replication_key or bookmark_is_empty:
             yield activate_version_message
 
-        if replication_key_value:
+        if replication_key_value is not None:
             entry_schema = catalog_entry.schema
 
             if entry_schema.properties[replication_key].format == 'date-time':
@@ -292,7 +307,7 @@ def sync_table(connection, catalog_entry, state):
                                                time_extracted)
                 yield record_message
 
-                if replication_key:
+                if replication_key is not None:
                     state = singer.write_bookmark(state,
                                                   tap_stream_id,
                                                   'replication_key_value',

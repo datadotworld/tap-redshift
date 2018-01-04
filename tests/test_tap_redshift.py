@@ -12,32 +12,38 @@ sample_db_data = {
         {
             "type": "int4",
             "pos": 1,
-            "name": "id"
+            "name": "id",
+            "nullable": "NO"
         },
         {
             "type": "bool",
             "pos": 2,
-            "name": "verified"
+            "name": "verified",
+            "nullable": "YES"
         },
         {
             "type": "float",
             "pos": 3,
-            "name": "coord"
+            "name": "coord",
+            "nullable": "YES"
         },
         {
-            "type": "decimal",
+            "type": "numeric",
             "pos": 4,
-            "name": "cost"
+            "name": "cost",
+            "nullable": "YES"
         },
         {
             "type": "varchar",
             "pos": 5,
-            "name": "email"
+            "name": "email",
+            "nullable": "NO"
         },
         {
             'type': 'date',
             'pos': 6,
-            'name': 'date_created'
+            'name': 'date_created',
+            "nullable": "YES"
         }
     ]
 }
@@ -50,10 +56,7 @@ expected_result = {
             'properties': {
                 'id': {
                     'minimum': -2147483648,
-                    'type': [
-                        'null',
-                        'integer'
-                    ],
+                    'type': 'integer',
                     'maximum': 2147483647,
                     'inclusion': 'available'
                 },
@@ -80,10 +83,7 @@ expected_result = {
                     'inclusion': 'available'
                 },
                 'varchar': {
-                    'type': [
-                        'null',
-                        'string'
-                    ],
+                    'type': 'string',
                     'inclusion': 'available'
                 },
                 "expires_at": {
