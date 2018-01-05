@@ -1,4 +1,3 @@
-import datetime
 import copy
 import time
 import pendulum
@@ -54,6 +53,7 @@ DATETIME_TYPES = set(['timestamp', 'timestamptz', 'date'])
 def discover_catalog(**kwargs):
     '''Returns a Catalog describing the structure of the database.'''
 
+    table_schema = None
     # For testing purpose
     if kwargs:
         args = kwargs.get('mock')
@@ -69,18 +69,20 @@ def discover_catalog(**kwargs):
         WHERE table_schema = '{}'
         """.format(table_schema), **kwargs)
 
-    column_specs = select_all("""
+    column_specs = select_all(
+        """
         SELECT c.table_name, c.ordinal_position, c.column_name, c.udt_name,
         c.is_nullable
         FROM INFORMATION_SCHEMA.Tables t
         JOIN INFORMATION_SCHEMA.Columns c ON c.table_name = t.table_name
         WHERE t.table_schema = '{}'
-        ORDER BY c.table_name, c.ordinal_position""".format(table_schema),
-        **kwargs)
+        ORDER BY c.table_name, c.ordinal_position
+        """.format(table_schema), **kwargs)
 
     entries = []
     column = [{'name': k, 'columns': [
-                {'pos': t[1], 'name': t[2], 'type': t[3], 'nullable': t[4]} for t in v]}
+                {'pos': t[1], 'name': t[2], 'type': t[3],
+                    'nullable': t[4]} for t in v]}
               for k, v in groupby(column_specs, key=lambda t: t[0])]
 
     for items in column:
@@ -101,7 +103,8 @@ def discover_catalog(**kwargs):
         column_is_key_prop = lambda c, s: (
             s.properties[c['name']].inclusion != 'unsupported'
         )
-        key_properties = [c['name'] for c in cols if column_is_key_prop(c, schema)]
+        key_properties = [c['name'] for c in cols
+                          if column_is_key_prop(c, schema)]
         if key_properties:
             entry.key_properties = key_properties
 
@@ -253,7 +256,8 @@ def sync_table(connection, catalog_entry, state):
                                               tap_stream_id,
                                               'replication_key')
 
-        bookmark_is_empty = state.get('bookmarks', {}).get(tap_stream_id) is None
+        bookmark_is_empty = state.get('bookmarks', {}).get(
+            tap_stream_id) is None
 
         stream_version = get_stream_version(tap_stream_id, state)
         state = singer.write_bookmark(state,
