@@ -329,10 +329,9 @@ def sync_table(connection, catalog_entry, state):
         yield singer.StateMessage(value=copy.deepcopy(state))
 
 
-def generate_messages(catalog, state):
-    discovered = discover_catalog()
-    con = open_connection()
-    catalog = resolve.resolve_catalog(con, discovered, catalog, state)
+def generate_messages(catalog, state, **kwargs):
+    con = open_connection(**kwargs)
+    catalog = resolve.resolve_catalog(catalog, state)
 
     for catalog_entry in catalog.streams:
         state = singer.set_currently_syncing(state,

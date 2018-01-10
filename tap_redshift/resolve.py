@@ -44,7 +44,7 @@ def desired_columns(selected, table_schema):
     return selected.intersection(available)
 
 
-def resolve_catalog(con, discovered, catalog, state):
+def resolve_catalog(catalog, state):
     # Filter catalog to include only selected streams
     streams = list(filter(
                     lambda stream: stream.is_selected(), catalog.streams))
@@ -60,7 +60,7 @@ def resolve_catalog(con, discovered, catalog, state):
     # with the same stream in the discovered catalog.
     for catalog_entry in streams:
 
-        discovered_table = discovered.get_stream(catalog_entry.tap_stream_id)
+        discovered_table = catalog.get_stream(catalog_entry.tap_stream_id)
         if not discovered_table:
             LOGGER.warning('Database {} table {} selected but does not exist'
                            .format(catalog_entry.database,
