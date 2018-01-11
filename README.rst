@@ -22,6 +22,10 @@ The json file requires the following attributes;
 * ``user``
 * ``password``
 
+And an optional attribute;
+
+* ``table_schema``
+
 Example:
 
 .. code-block:: json
@@ -31,7 +35,8 @@ Example:
         "port": "REDSHIFT_PORT",
         "dbname": "REDSHIFT_DBNAME",
         "user": "REDSHIFT_USER",
-        "password": "REDSHIFT_PASSWORD"
+        "password": "REDSHIFT_PASSWORD",
+        "table_schema": "REDSHIFT_SCHEMA"
     }
 
 
