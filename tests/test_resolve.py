@@ -68,9 +68,7 @@ class TestResolve(object):
                 selected_cols, table_schema), raises(Exception))
 
     @mock.patch("psycopg2.connect")
-    def test_resolve_catalog(self, mock_connect, db_config):
-        mock_con = mock_connect.return_value
-        mock_cur = mock_con.cursor.return_value
+    def test_resolve_catalog(self, db_config):
         catalog = tap_redshift.discover_catalog(mock=db_config)
         state = tap_redshift.build_state({}, catalog)
         resolved_cat = tap_redshift.resolve.resolve_catalog(catalog, state)

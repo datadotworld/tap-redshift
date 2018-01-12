@@ -3,7 +3,7 @@ import mock
 import singer
 
 import pytest
-from doublex import assert_that, called
+from doublex import assert_that
 from hamcrest import has_key, equal_to, instance_of
 
 
@@ -113,21 +113,21 @@ expected_result = {
                         "sql-datatype": "bool",
                         "selected-by-default": True
                     },
-                    "breadcrumb": ["properties", "is_bool" ]
+                    "breadcrumb": ["properties", "is_bool"]
                 },
                 {
                     "metadata": {
                         "sql-datatype": "int4",
                         "selected-by-default": True
                     },
-                    "breadcrumb": ["properties", "float" ]
+                    "breadcrumb": ["properties", "float"]
                 },
                 {
                     "metadata": {
                         "sql-datatype": "int4",
                         "selected-by-default": True
                     },
-                    "breadcrumb": ["properties", "decimal" ]
+                    "breadcrumb": ["properties", "decimal"]
                 },
                 {
                     "metadata": {

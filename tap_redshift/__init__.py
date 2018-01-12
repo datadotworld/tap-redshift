@@ -100,9 +100,6 @@ def discover_catalog(**kwargs):
                     schema=schema,
                     table=table_name,
                     metadata=metadata)
-        column_is_key_prop = lambda c, s: (
-            s.properties[c['name']].inclusion != 'unsupported'
-        )
         key_properties = [c['name'] for c in cols
                           if column_is_key_prop(c, schema)]
         if key_properties:
@@ -113,6 +110,10 @@ def discover_catalog(**kwargs):
         entries.append(entry)
 
     return Catalog(entries)
+
+
+def column_is_key_prop(c, s):
+    s.properties[c['name']].inclusion != 'unsupported'
 
 
 def do_discover():
