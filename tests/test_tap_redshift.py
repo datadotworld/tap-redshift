@@ -145,12 +145,7 @@ expected_result = {
                 },
             ],
             "key_properties": [
-                "id",
-                "is_bool",
-                "float",
-                "decimal",
-                "varchar",
-                "expires_at"
+                "id"
             ],
             "is_view": False,
             "table_name": "fake name",

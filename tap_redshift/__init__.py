@@ -47,13 +47,19 @@ BYTES_FOR_INTEGER_TYPE = {
 
 FLOAT_TYPES = set(['float', 'float4', 'float8'])
 
-DATETIME_TYPES = set(['timestamp', 'timestamptz', 'date'])
+DATETIME_TYPES = set([
+    'timestamp',
+    'timestamptz',
+    'date',
+    'timestamp without time zone',
+    'timestamp with time zone'
+])
 
 
 def discover_catalog(**kwargs):
     '''Returns a Catalog describing the structure of the database.'''
 
-    table_schema = None
+    schema = None
     # For testing purpose
     if kwargs:
         args = kwargs.get('mock')
@@ -61,13 +67,14 @@ def discover_catalog(**kwargs):
     else:
         args = utils.parse_args(REQUIRED_CONFIG_KEYS)
         dbname = args.config['dbname']
-        table_schema = args.config['table_schema'] or 'public'
+        schema = args.config['schema'] or 'public'
 
-    table_spec = select_all("""
+    table_spec = select_all(
+        """
         SELECT table_type, table_name
         FROM INFORMATION_SCHEMA.Tables
         WHERE table_schema = '{}'
-        """.format(table_schema), **kwargs)
+        """.format(schema), **kwargs)
 
     column_specs = select_all(
         """
@@ -77,7 +84,21 @@ def discover_catalog(**kwargs):
         JOIN INFORMATION_SCHEMA.Columns c ON c.table_name = t.table_name
         WHERE t.table_schema = '{}'
         ORDER BY c.table_name, c.ordinal_position
-        """.format(table_schema), **kwargs)
+        """.format(schema), **kwargs)
+
+    pk_specs = select_all(
+        """
+        SELECT con.conname AS key_name, c.relname AS key_table,
+        ca.attname AS key_column, pg_get_constraintdef(con.oid) AS ddl
+        FROM pg_constraint AS con
+        INNER JOIN pg_class AS c
+        ON c.relnamespace = con.connamespace
+        AND c.relfilenode = con.conrelid
+        INNER JOIN pg_attribute AS ca
+        ON ca.attnum=ANY(con.conkey)
+        AND ca.attrelid = con.conrelid
+        WHERE con.contype = 'p'
+        """, **kwargs)
 
     entries = []
     column = [{'name': k, 'columns': [
@@ -100,6 +121,16 @@ def discover_catalog(**kwargs):
                     schema=schema,
                     table=table_name,
                     metadata=metadata)
+
+        pk_columns = [{'name': k, 'columns': [
+                        {'table': t[1], 'column': t[2], 'ddl': t[3] }
+                        for t in v]}
+                     for k, v in groupby(pk_specs, key=lambda t: t[0])]
+        pk_col_name = [c['column'] for i in pk_columns for c in i['columns']]
+        column_is_key_prop = lambda c, s: (
+            [x for x in pk_col_name if x == c['name']] and
+            s.properties[c['name']].inclusion != 'unsupported'
+        )
         key_properties = [c['name'] for c in cols
                           if column_is_key_prop(c, schema)]
         if key_properties:
@@ -110,10 +141,6 @@ def discover_catalog(**kwargs):
         entries.append(entry)
 
     return Catalog(entries)
-
-
-def column_is_key_prop(c, s):
-    s.properties[c['name']].inclusion != 'unsupported'
 
 
 def do_discover():
