@@ -49,7 +49,7 @@ setup(
       install_requires=[
         'attrs==17.2.0',
         'pendulum==1.2.0',
-        'singer-python==5.0.2',
+        'singer-python==5.0.4',
         'backoff==1.3.2',
         'psycopg2==2.7.3.2',
       ],
