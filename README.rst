@@ -24,7 +24,7 @@ The json file requires the following attributes;
 
 And an optional attribute;
 
-* ``table_schema``
+* ``schema``
 
 Example:
 
@@ -36,7 +36,7 @@ Example:
         "dbname": "REDSHIFT_DBNAME",
         "user": "REDSHIFT_USER",
         "password": "REDSHIFT_PASSWORD",
-        "table_schema": "REDSHIFT_SCHEMA"
+        "schema": "REDSHIFT_SCHEMA"
     }
 
 
@@ -63,7 +63,7 @@ Tables and property selection
 =============================
 In sync mode, tap-redshift consumes a modified version of the catalog where tables and fields have been marked as selected.
 
-Edit ``properties.json`` file to make selections by adding key-value of ``"selected": "true"`` to the top level schema and properties that should be synced.
+Edit ``properties.json`` file to make selections by adding key-value of ``"selected": "true"`` to the top level schema and also in the metadata for each properties you want to select.
 
 Example:
 
@@ -71,29 +71,58 @@ Example:
 .. code-block:: json
 
     {
-        "selected": "true",
-        "properties": {
-            "name": {
-                "selected": "true",
-                "maxLength": 255,
-                "inclusion": "available",
-                "type": [
-                    "null",
-                    "string"
+        "tap_stream_id": "sample-stream-id",
+        "table_name": "sample-name",
+        "stream": "sample-stream",
+        "is_view": false,
+        "database_name": "sample-dbname"
+        "schema": {
+            "selected": "true",
+            "properties": {
+                "name": {
+                    "maxLength": 255,
+                    "inclusion": "available",
+                    "type": [
+                        "null",
+                        "string"
+                    ]
+                },
+                "id": {
+                    "minimum": -2147483648,
+                    "inclusion": "automatic",
+                    "maximum": 2147483647,
+                    "type": [
+                        "null",
+                        "integer"
+                    ]
+                }
+            },
+            "type": "object"
+        },
+        "metadata": [
+            {
+                "metadata": {
+                    "selected": true,
+                    "selected-by-default": true,
+                    "sql-datatype": "int2"
+                },
+                "breadcrumb": [
+                    "properties",
+                    "id"
                 ]
             },
-            "id": {
-                "selected": "true",
-                "minimum": -2147483648,
-                "inclusion": "automatic",
-                "maximum": 2147483647,
-                "type": [
-                    "null",
-                    "integer"
+            {
+                "metadata": {
+                    "selected": true,
+                    "selected-by-default": true,
+                    "sql-datatype": "varchar"
+                },
+                "breadcrumb": [
+                    "properties",
+                    "catname"
                 ]
-            }
-        },
-        "type": "object"
+            },
+        ]
     }
 
 The tap can then be invoked in sync mode with the properties catalog argument:
@@ -115,49 +144,70 @@ Incremental
 -----------
 Incremental replication works in conjunction with a state file to only extract new records each time the tap is invoked i.e continue from the last synced data.
 
-To use incremental replication, we need to add the ``replication_method`` and ``replication_key`` to the ``properties.json file``.
+To use incremental replication, we need to add the ``replication_method`` and ``replication_key`` to the top level of the ``properties.json file``.
 
 .. code-block:: json
 
     {
-        "replication_method": "INCREMENTAL",
-        "replication_key": "id",
-        "selected": "true",
-        "properties": {
-            "name": {
-                "selected": "true",
-                "maxLength": 255,
-                "inclusion": "available",
-                "type": [
-                    "null",
-                    "string"
-                ]
-            },
-            "id": {
-                "selected": "true",
-                "minimum": -2147483648,
-                "inclusion": "automatic",
-                "maximum": 2147483647,
-                "type": [
-                    "null",
-                    "integer"
-                ]
+        "streams": [
+            {
+                "replication_method": "INCREMENTAL",
+                "replication_key": "id",
+                "tap_stream_id": "tap-sample",
+                "schema": {
+                    "properties": {
+                        "name": {
+                            "selected": "true",
+                            "maxLength": 255,
+                            "inclusion": "available",
+                            "type": [
+                                "null",
+                                "string"
+                            ]
+                        },
+                        "id": {
+                            "selected": "true",
+                            "minimum": -2147483648,
+                            "inclusion": "automatic",
+                            "maximum": 2147483647,
+                            "type": [
+                                "null",
+                                "integer"
+                            ]
+                        }
+                    }
+                    "type": "object"
+                }
             }
-        },
-        "type": "object"
+        ]
     }
 
 We can then invoke the tap again in sync mode. This time the output will have ``STATE`` messages that contains a ``replication_key_value`` and ``bookmark`` for data that were extracted. 
 
 Redirect the output to a ``state.json`` file. Normally, the target will echo the last STATE after it has finished processing data.
 
-Run the code below to pass the state into a ``stae.json`` file and then grab the last synced state data. 
+Run the code below to pass the state into a ``state.json`` file and then grab the last synced state data.
 
 .. code-block:: shell
 
     $ tap-redshift -c config.json --properties properties.json > state.json
 
     $ tail -1 state.json > state.json.tmp && mv state.json.tmp state.json
+
+The ``state.json`` file should look like;
+
+.. code-block:: json
+
+    {
+        "currently_syncing": "dbname-tablename",
+        "bookmarks": {
+            "dev-category": {
+                "replication_key": "id",
+                "version": 1516304171710,
+                "replication_key_value": 3
+            }
+        }
+    }
 
 We can then always invoke the incremental replication with the ``state.json`` file to only sync new data created after the last synced data.
 
