@@ -46,19 +46,23 @@ def desired_columns(selected, table_schema):
 
 
 def get_selected_fields(catalog_item):
+    selected_fields = []
+    selected_table = []
     for catalog_entry in catalog_item['streams']:
         mdata = metadata.to_map(catalog_entry['metadata'])
-        selected_fields = []
         for prop in catalog_entry['schema']['properties']:
             if (metadata.get(mdata, ('properties', prop), 'selected') is True):
                 selected_fields.append(prop)
-        return selected_fields
+                selected_table.append(catalog_entry['table_name'])
+    return selected_fields, selected_table
 
 
 def resolve_catalog(catalog, state):
     # Filter catalog to include only selected streams
-    selected_fields = get_selected_fields(catalog)
+    selected_fields, selected_table = get_selected_fields(catalog)
     for s in catalog['streams']:
+        if selected_table and s['table_name'] in selected_table:
+            s['schema']['selected'] = True
         for k in s['schema']['properties']:
             if k in selected_fields:
                 s['schema']['properties'][k]['selected'] = True
