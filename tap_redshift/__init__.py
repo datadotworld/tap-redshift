@@ -123,11 +123,11 @@ def discover_catalog(**kwargs):
                     metadata=metadata)
 
         pk_columns = [{'name': k, 'columns': [
-                        {'table': t[1], 'column': t[2], 'ddl': t[3] }
+                        {'table': t[1], 'column': t[2], 'ddl': t[3]}
                         for t in v]}
-                     for k, v in groupby(pk_specs, key=lambda t: t[0])]
+                      for k, v in groupby(pk_specs, key=lambda t: t[0])]
         pk_col_name = [c['column'] for i in pk_columns for c in i['columns']]
-        column_is_key_prop = lambda c, s: (
+        column_is_key_prop = lambda c, s: (  # noqa: E731
             [x for x in pk_col_name if x == c['name']] and
             s.properties[c['name']].inclusion != 'unsupported'
         )
@@ -450,17 +450,14 @@ def main_impl():
     elif args.properties:
         catalog = Catalog.from_dict(args.properties)
         state = build_state(args.state, catalog)
-        do_sync(catalog, state)
+        do_sync(args.properties, state)
     else:
         LOGGER.info("No properties were selected")
 
 
+@utils.handle_top_exception(LOGGER)
 def main():
-    try:
-        main_impl()
-    except Exception as exc:
-        LOGGER.critical(exc)
-        raise exc
+    main_impl()
 
 
 if __name__ == '__main__':
