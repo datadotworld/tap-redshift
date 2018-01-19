@@ -3,6 +3,7 @@ from itertools import dropwhile
 import singer
 from singer.catalog import Catalog, CatalogEntry
 from singer.schema import Schema
+from singer import metadata
 
 
 LOGGER = singer.get_logger()
@@ -44,10 +45,27 @@ def desired_columns(selected, table_schema):
     return selected.intersection(available)
 
 
+def get_selected_fields(catalog_item):
+    for catalog_entry in catalog_item['streams']:
+        mdata = metadata.to_map(catalog_entry['metadata'])
+        selected_fields = []
+        for prop in catalog_entry['schema']['properties']:
+            if (metadata.get(mdata, ('properties', prop), 'selected') is True):
+                selected_fields.append(prop)
+        return selected_fields
+
+
 def resolve_catalog(catalog, state):
     # Filter catalog to include only selected streams
+    selected_fields = get_selected_fields(catalog)
+    for s in catalog['streams']:
+        for k in s['schema']['properties']:
+            if k in selected_fields:
+                s['schema']['properties'][k]['selected'] = True
+
     streams = list(filter(
-                    lambda stream: stream.is_selected(), catalog.streams))
+                    lambda stream: stream.is_selected(),
+                    Catalog.from_dict(catalog).streams))
 
     currently_syncing = singer.get_currently_syncing(state)
     if currently_syncing:
@@ -59,8 +77,8 @@ def resolve_catalog(catalog, state):
     # Iterate over the streams in the input catalog and match each one up
     # with the same stream in the discovered catalog.
     for catalog_entry in streams:
-
-        discovered_table = catalog.get_stream(catalog_entry.tap_stream_id)
+        cat_obj = Catalog.from_dict(catalog)
+        discovered_table = cat_obj.get_stream(catalog_entry.tap_stream_id)
         if not discovered_table:
             LOGGER.warning('Database {} table {} selected but does not exist'
                            .format(catalog_entry.database,

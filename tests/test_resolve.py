@@ -1,12 +1,12 @@
 import tap_redshift
 import mock
-import singer
 
 import pytest
 from doublex import assert_that
 from hamcrest import equal_to, calling, raises, has_key, instance_of
 
 from singer.schema import Schema
+from singer.catalog import Catalog
 
 
 @pytest.fixture()
@@ -71,6 +71,8 @@ class TestResolve(object):
     def test_resolve_catalog(self, db_config):
         catalog = tap_redshift.discover_catalog(mock=db_config)
         state = tap_redshift.build_state({}, catalog)
-        resolved_cat = tap_redshift.resolve.resolve_catalog(catalog, state)
-        assert_that(resolved_cat, instance_of(singer.catalog.Catalog))
+        resolved_cat = tap_redshift.resolve.resolve_catalog(
+                                                    Catalog.to_dict(catalog),
+                                                    state)
+        assert_that(resolved_cat, instance_of(Catalog))
         assert_that(resolved_cat.to_dict(), has_key(equal_to('streams')))

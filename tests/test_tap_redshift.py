@@ -5,6 +5,7 @@ import singer
 import pytest
 from doublex import assert_that
 from hamcrest import has_key, equal_to, instance_of
+from singer.catalog import Catalog
 
 
 sample_db_data = {
@@ -246,7 +247,9 @@ class TestRedShiftTap(object):
         catalog = tap_redshift.discover_catalog(mock=db_config)
         state = tap_redshift.build_state({}, catalog)
         message_types = message_types_and_versions(
-            tap_redshift.generate_messages(catalog, state, mock=db_config))
+            tap_redshift.generate_messages(Catalog.to_dict(catalog),
+                                           state,
+                                           mock=db_config))
         assert_that((message_types, equal_to(['StateMessage'])))
 
     @mock.patch("psycopg2.connect")
