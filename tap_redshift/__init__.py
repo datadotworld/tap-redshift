@@ -15,7 +15,7 @@ from singer import metadata
 from tap_redshift import resolve
 
 
-__version__ = '1.0.0'
+__version__ = '1.0.0b1'
 
 LOGGER = singer.get_logger()
 
