@@ -63,7 +63,9 @@ Tables and property selection
 =============================
 In sync mode, tap-redshift consumes a modified version of the catalog where tables and fields have been marked as selected.
 
-Edit ``properties.json`` file to make selections by adding key-value of ``"selected": "true"`` to the top level schema and also in the metadata for each properties you want to select.
+Edit the metadata list in your ``properties.json`` file to make property selections.
+
+The first element in the metadata list with the empty breadcrumb property is the table/schema, once ``selected: true`` is added to its metadata dict, each properties that has ``selected-by-default`` to be ``true`` or has ``selected: true`` added in its metadata dict will be synced.
 
 Example:
 
@@ -77,7 +79,6 @@ Example:
         "is_view": false,
         "database_name": "sample-dbname"
         "schema": {
-            "selected": "true",
             "properties": {
                 "name": {
                     "maxLength": 255,
@@ -102,6 +103,13 @@ Example:
         "metadata": [
             {
                 "metadata": {
+                    "selected-by-default": false,
+                    "selected": true
+                },
+                "breadcrumb": [],
+            },
+            {
+                "metadata": {
                     "selected": true,
                     "selected-by-default": true,
                     "sql-datatype": "int2"
@@ -113,7 +121,6 @@ Example:
             },
             {
                 "metadata": {
-                    "selected": true,
                     "selected-by-default": true,
                     "sql-datatype": "varchar"
                 },
