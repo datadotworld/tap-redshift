@@ -1,5 +1,5 @@
 # tap-redshift
-# Copyright 2017 data.world, Inc.
+# Copyright 2018 data.world, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the
@@ -17,23 +17,20 @@
 # This product includes software developed at
 # data.world, Inc.(http://data.world/).
 
-
 import copy
 import time
-import pendulum
-
-import psycopg2
 from itertools import groupby
 
+import pendulum
+import psycopg2
 import singer
 import singer.metrics as metrics
-from singer import utils
-from singer.schema import Schema
-from singer.catalog import Catalog, CatalogEntry
 from singer import metadata
+from singer import utils
+from singer.catalog import Catalog, CatalogEntry
+from singer.schema import Schema
 
 from tap_redshift import resolve
-
 
 __version__ = '1.0.0b1'
 
@@ -47,16 +44,8 @@ REQUIRED_CONFIG_KEYS = [
     'password'
 ]
 
-STRING_TYPES = set([
-    'char',
-    'character',
-    'nchar',
-    'bpchar',
-    'text',
-    'varchar',
-    'character varying',
-    'nvarchar'
-])
+STRING_TYPES = {'char', 'character', 'nchar', 'bpchar', 'text', 'varchar',
+                'character varying', 'nvarchar'}
 
 BYTES_FOR_INTEGER_TYPE = {
     'int2': 2,
@@ -65,38 +54,25 @@ BYTES_FOR_INTEGER_TYPE = {
     'int8': 8
 }
 
-FLOAT_TYPES = set(['float', 'float4', 'float8'])
+FLOAT_TYPES = {'float', 'float4', 'float8'}
 
-DATETIME_TYPES = set([
-    'timestamp',
-    'timestamptz',
-    'date',
-    'timestamp without time zone',
-    'timestamp with time zone'
-])
+DATETIME_TYPES = {'timestamp', 'timestamptz', 'date',
+                  'timestamp without time zone', 'timestamp with time zone'}
 
 
-def discover_catalog(**kwargs):
+def discover_catalog(conn, db_schema):
     '''Returns a Catalog describing the structure of the database.'''
 
-    schema = None
-    # For testing purpose
-    if kwargs:
-        args = kwargs.get('mock')
-        dbname = args['dbname']
-    else:
-        args = utils.parse_args(REQUIRED_CONFIG_KEYS)
-        dbname = args.config['dbname']
-        schema = args.config['schema'] or 'public'
-
     table_spec = select_all(
+        conn,
         """
-        SELECT table_type, table_name
+        SELECT table_name, table_type
         FROM INFORMATION_SCHEMA.Tables
         WHERE table_schema = '{}'
-        """.format(schema), **kwargs)
+        """.format(db_schema))
 
     column_specs = select_all(
+        conn,
         """
         SELECT c.table_name, c.ordinal_position, c.column_name, c.udt_name,
         c.is_nullable
@@ -104,67 +80,69 @@ def discover_catalog(**kwargs):
         JOIN INFORMATION_SCHEMA.Columns c ON c.table_name = t.table_name
         WHERE t.table_schema = '{}'
         ORDER BY c.table_name, c.ordinal_position
-        """.format(schema), **kwargs)
+        """.format(db_schema))
 
     pk_specs = select_all(
+        conn,
         """
-        SELECT con.conname AS key_name, c.relname AS key_table,
-        ca.attname AS key_column, pg_get_constraintdef(con.oid) AS ddl
-        FROM pg_constraint AS con
-        INNER JOIN pg_class AS c
-        ON c.relnamespace = con.connamespace
-        AND c.relfilenode = con.conrelid
-        INNER JOIN pg_attribute AS ca
-        ON ca.attnum=ANY(con.conkey)
-        AND ca.attrelid = con.conrelid
-        WHERE con.contype = 'p'
-        """, **kwargs)
+        SELECT kc.table_name, kc.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kc
+            ON kc.table_name = tc.table_name AND
+               kc.table_schema = tc.table_schema AND
+               kc.constraint_name = tc.constraint_name
+        WHERE tc.constraint_type = 'PRIMARY KEY' AND
+              tc.table_schema = '{}'
+        ORDER BY
+          tc.table_schema,
+          tc.table_name,
+          kc.ordinal_position
+        """.format(db_schema))
 
     entries = []
-    column = [{'name': k, 'columns': [
-                {'pos': t[1], 'name': t[2], 'type': t[3],
-                    'nullable': t[4]} for t in v]}
-              for k, v in groupby(column_specs, key=lambda t: t[0])]
+    table_columns = [{'name': k, 'columns': [
+        {'pos': t[1], 'name': t[2], 'type': t[3],
+         'nullable': t[4]} for t in v]}
+                     for k, v in groupby(column_specs, key=lambda t: t[0])]
 
-    for items in column:
+    table_pks = {k: [t[1] for t in v]
+                 for k, v in groupby(pk_specs, key=lambda t: t[0])}
+
+    table_types = dict(table_spec)
+
+    for items in table_columns:
         table_name = items['name']
+        qualified_table_name = '{}.{}'.format(db_schema, table_name)
         cols = items['columns']
         schema = Schema(type='object',
                         properties={
                             c['name']: schema_for_column(c) for c in cols})
         metadata = create_column_metadata(cols)
-        tap_stream_id = '{}-{}'.format(dbname, table_name)
+        tap_stream_id = '{}.{}'.format(
+            conn.get_dsn_parameters()['dbname'], qualified_table_name)
         entry = CatalogEntry(
-                    database=dbname,
-                    tap_stream_id=tap_stream_id,
-                    stream=table_name,
-                    schema=schema,
-                    table=table_name,
-                    metadata=metadata)
+            database=conn.get_dsn_parameters()['dbname'],
+            tap_stream_id=tap_stream_id,
+            stream=table_name,
+            schema=schema,
+            table=qualified_table_name,
+            metadata=metadata)
 
-        pk_columns = [{'name': k, 'columns': [
-                        {'table': t[1], 'column': t[2], 'ddl': t[3]}
-                        for t in v]}
-                      for k, v in groupby(pk_specs, key=lambda t: t[0])]
-        pk_col_name = [c['column'] for i in pk_columns for c in i['columns']]
-        column_is_key_prop = lambda c, s: (  # noqa: E731
-            [x for x in pk_col_name if x == c['name']] and
-            s.properties[c['name']].inclusion != 'unsupported'
-        )
-        key_properties = [c['name'] for c in cols
-                          if column_is_key_prop(c, schema)]
+        key_properties = [
+            column for column in table_pks.get(table_name, [])
+            if schema.properties[column].inclusion != 'unsupported']
+
         if key_properties:
             entry.key_properties = key_properties
 
-        table_type = [t for (t) in table_spec]
-        entry.is_view = table_type == 'VIEW'
+        entry.is_view = table_types.get(table_name) == 'VIEW'
         entries.append(entry)
 
     return Catalog(entries)
 
 
-def do_discover():
-    discover_catalog().dump()
+def do_discover(conn, db_schema):
+    discover_catalog(conn, db_schema).dump()
 
 
 def schema_for_column(c):
@@ -210,7 +188,7 @@ def schema_for_column(c):
 
 
 def create_column_metadata(cols):
-    mdata = {}
+    mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
     for c in cols:
         schema = schema_for_column(c)
@@ -226,36 +204,23 @@ def create_column_metadata(cols):
     return metadata.to_list(mdata)
 
 
-def open_connection(**kwargs):
-
-    # For testing purpose
-    if kwargs:
-        args = kwargs.get('mock')
-        host = args['host'],
-        port = args['port'],
-        dbname = args['dbname'],
-        user = args['user'],
-        password = args['password']
-    else:
-        args = utils.parse_args(REQUIRED_CONFIG_KEYS)
-        config = args.config
-        host = config['host'],
-        port = config['port'],
-        dbname = config['dbname'],
-        user = config['user'],
-        password = config['password']
+def open_connection(config):
+    host = config['host'],
+    port = config['port'],
+    dbname = config['dbname'],
+    user = config['user'],
+    password = config['password']
 
     connection = psycopg2.connect(
-            host=host[0],
-            port=port[0],
-            dbname=dbname[0],
-            user=user[0],
-            password=password)
+        host=host[0],
+        port=port[0],
+        dbname=dbname[0],
+        user=user[0],
+        password=password)
     return connection
 
 
-def select_all(query, **kwargs):
-    conn = open_connection(**kwargs)
+def select_all(conn, query):
     cur = conn.cursor()
     cur.execute(query)
     column_specs = cur.fetchall()
@@ -333,7 +298,7 @@ def sync_table(connection, catalog_entry, state):
                 replication_key_value = pendulum.parse(replication_key_value)
 
             select += ' WHERE {} >= %(replication_key_value)s ORDER BY {} ' \
-                'ASC'.format(replication_key, replication_key)
+                      'ASC'.format(replication_key, replication_key)
             params['replication_key_value'] = replication_key_value
 
         elif replication_key is not None:
@@ -364,7 +329,7 @@ def sync_table(connection, catalog_entry, state):
                                                   tap_stream_id,
                                                   'replication_key_value',
                                                   record_message.record[
-                                                    replication_key])
+                                                      replication_key])
                 if rows_saved % 1000 == 0:
                     yield singer.StateMessage(value=copy.deepcopy(state))
                 row = cursor.fetchone()
@@ -377,9 +342,9 @@ def sync_table(connection, catalog_entry, state):
         yield singer.StateMessage(value=copy.deepcopy(state))
 
 
-def generate_messages(catalog, state, **kwargs):
-    con = open_connection(**kwargs)
-    catalog = resolve.resolve_catalog(catalog, state)
+def generate_messages(conn, db_schema, catalog, state):
+    catalog = resolve.resolve_catalog(discover_catalog(conn, db_schema),
+                                      catalog, state)
 
     for catalog_entry in catalog.streams:
         state = singer.set_currently_syncing(state,
@@ -398,7 +363,7 @@ def generate_messages(catalog, state, **kwargs):
         with metrics.job_timer('sync_table') as timer:
             timer.tags['database'] = catalog_entry.database
             timer.tags['table'] = catalog_entry.table
-            for message in sync_table(con, catalog_entry, state):
+            for message in sync_table(conn, catalog_entry, state):
                 yield message
 
     # If we get here, we've finished processing all the streams, so clear
@@ -407,8 +372,8 @@ def generate_messages(catalog, state, **kwargs):
     yield singer.StateMessage(value=copy.deepcopy(state))
 
 
-def do_sync(catalog, state):
-    for message in generate_messages(catalog, state):
+def do_sync(conn, db_schema, catalog, state):
+    for message in generate_messages(conn, db_schema, catalog, state):
         singer.write_message(message)
 
 
@@ -461,16 +426,17 @@ def build_state(raw_state, catalog):
 
 def main_impl():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
-
+    connection = open_connection(args.config)
+    db_schema = args.config.get('schema', 'public')
     if args.discover:
-        do_discover()
+        do_discover(connection, db_schema)
     elif args.catalog:
         state = build_state(args.state, args.catalog)
-        do_sync(args.catalog, state)
+        do_sync(connection, db_schema, args.catalog, state)
     elif args.properties:
         catalog = Catalog.from_dict(args.properties)
         state = build_state(args.state, catalog)
-        do_sync(args.properties, state)
+        do_sync(connection, db_schema, catalog, state)
     else:
         LOGGER.info("No properties were selected")
 

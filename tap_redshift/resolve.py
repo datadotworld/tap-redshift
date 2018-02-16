@@ -1,5 +1,5 @@
 # tap-redshift
-# Copyright 2017 data.world, Inc.
+# Copyright 2018 data.world, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the
@@ -17,27 +17,25 @@
 # This product includes software developed at
 # data.world, Inc.(http://data.world/).
 
-
 from itertools import dropwhile
 
 import singer
+from singer import metadata
 from singer.catalog import Catalog, CatalogEntry
 from singer.schema import Schema
-from singer import metadata
-
 
 LOGGER = singer.get_logger()
 
 
 def desired_columns(selected, table_schema):
-
-    '''Return the set of column names we need to include in the SELECT.
+    """Return the set of column names we need to include in the SELECT.
 
     selected - set of column names marked as selected in the input catalog
     table_schema - the most recently discovered Schema for the table
-    '''
+    """
     all_columns = set()
     available = set()
+    automatic = set()
     unsupported = set()
 
     for column, column_schema in table_schema.properties.items():
@@ -47,6 +45,8 @@ def desired_columns(selected, table_schema):
             available.add(column)
         elif inclusion == 'unsupported':
             unsupported.add(column)
+        elif inclusion == 'automatic':
+            automatic.add(column)
         else:
             raise Exception('Unknown inclusion ' + inclusion)
 
@@ -62,54 +62,49 @@ def desired_columns(selected, table_schema):
             'Columns %s were selected but do not exist.',
             selected_but_nonexistent)
 
-    return selected.intersection(available)
+    return selected.intersection(available).union(automatic)
 
 
-def get_selected_fields(catalog_item):
-    selected_fields = []
-    selected_table = []
-    for catalog_entry in catalog_item['streams']:
-        mdata = metadata.to_map(catalog_entry['metadata'])
-        for prop in catalog_entry['schema']['properties']:
-            if (metadata.get(mdata, ('properties', prop), 'selected') is True):
-                selected_fields.append(prop)
-                selected_table.append(catalog_entry['table_name'])
-    return selected_fields, selected_table
+def entry_is_selected(catalog_entry):
+    mdata = metadata.new()
+    if catalog_entry.metadata is not None:
+        mdata = metadata.to_map(catalog_entry.metadata)
+    return bool(catalog_entry.is_selected()
+                or metadata.get(mdata, (), 'selected'))
 
 
-def resolve_catalog(catalog, state):
-    # Filter catalog to include only selected streams
-    selected_fields, selected_table = get_selected_fields(catalog)
-    for s in catalog['streams']:
-        if selected_table and s['table_name'] in selected_table:
-            s['schema']['selected'] = True
-        for k in s['schema']['properties']:
-            if k in selected_fields:
-                s['schema']['properties'][k]['selected'] = True
+def get_selected_properties(catalog_entry):
+    mdata = metadata.to_map(catalog_entry.metadata)
+    properties = catalog_entry.schema.properties
 
-    streams = list(filter(
-                    lambda stream: stream.is_selected(),
-                    Catalog.from_dict(catalog).streams))
+    return {
+        k for k, v in properties.items()
+        if (metadata.get(mdata, ('properties', k), 'selected')
+            or (metadata.get(mdata, ('properties', k), 'selected-by-default')
+                and metadata.get(mdata, ('properties', k), 'selected') is None)
+            or properties[k].selected)}
+
+
+def resolve_catalog(discovered, catalog, state):
+    streams = list(filter(entry_is_selected, catalog.streams))
 
     currently_syncing = singer.get_currently_syncing(state)
     if currently_syncing:
         streams = dropwhile(
-                    lambda s: s.tap_stream_id != currently_syncing, streams)
+            lambda s: s.tap_stream_id != currently_syncing, streams)
 
     result = Catalog(streams=[])
 
     # Iterate over the streams in the input catalog and match each one up
     # with the same stream in the discovered catalog.
     for catalog_entry in streams:
-        cat_obj = Catalog.from_dict(catalog)
-        discovered_table = cat_obj.get_stream(catalog_entry.tap_stream_id)
+        discovered_table = discovered.get_stream(catalog_entry.tap_stream_id)
         if not discovered_table:
             LOGGER.warning('Database {} table {} selected but does not exist'
                            .format(catalog_entry.database,
                                    catalog_entry.table))
             continue
-        selected = set([k for k, v in catalog_entry.schema.properties.items()
-                        if v.selected or k == catalog_entry.replication_key])
+        selected = get_selected_properties(catalog_entry)
 
         # These are the columns we need to select
         columns = desired_columns(selected, discovered_table.schema)
