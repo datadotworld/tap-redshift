@@ -22,6 +22,10 @@ import time
 from itertools import groupby
 
 import pendulum
+import datetime
+import sys
+import simplejson as json
+
 import psycopg2
 import singer
 import singer.metrics as metrics
@@ -166,7 +170,6 @@ def schema_for_column(c):
 
     elif column_type == 'numeric':
         result.type = 'number'
-        result.exclusiveMaximum = True
 
     elif column_type in STRING_TYPES:
         result.type = 'string'
@@ -372,9 +375,18 @@ def generate_messages(conn, db_schema, catalog, state):
     yield singer.StateMessage(value=copy.deepcopy(state))
 
 
+def coerce_datetime(o):
+    if isinstance(o, (datetime.datetime, datetime.date)):
+        return o.isoformat()
+    raise TypeError("Type {} is not serializable".format(type(o)))
+
+
 def do_sync(conn, db_schema, catalog, state):
     for message in generate_messages(conn, db_schema, catalog, state):
-        singer.write_message(message)
+        sys.stdout.write(json.dumps(message.asdict(),
+                         default=coerce_datetime,
+                         use_decimal=True) + '\n')
+        sys.stdout.flush()
 
 
 def build_state(raw_state, catalog):
