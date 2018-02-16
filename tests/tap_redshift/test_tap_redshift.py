@@ -100,7 +100,6 @@ expected_result = {
                             'null',
                             'number'
                         ],
-                        'exclusiveMaximum': True,
                         'inclusion': 'available'
                     },
                     'varchar': {
