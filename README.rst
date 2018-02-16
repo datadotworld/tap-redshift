@@ -72,7 +72,7 @@ Example:
             {
                 "tap_stream_id": "sample-dbname.public.sample-name",
                 "stream": "sample-stream",
-                "database_name": "sample-dbname"
+                "database_name": "sample-dbname",
                 "table_name": "public.sample-name",
                 "is_view": false,
                 "key_properties": [
