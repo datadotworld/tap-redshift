@@ -103,7 +103,8 @@ def expected_catalog_from_db():
          'stream': 'table1',
          'metadata': [
              {'breadcrumb': (),
-              'metadata': {'selected-by-default': False}},
+              'metadata': {'selected-by-default': False,
+                           'valid-replication-keys': ['col1']}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'int2'}},
@@ -134,7 +135,8 @@ def expected_catalog_from_db():
          'stream': 'table2',
          'metadata': [
              {'breadcrumb': (),
-              'metadata': {'selected-by-default': False}},
+              'metadata': {'selected-by-default': False,
+                           'valid-replication-keys': ['col1', 'col2']}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'int4'}},
@@ -157,7 +159,10 @@ def expected_catalog_from_db():
          'stream': 'view1',
          'metadata': [
              {'breadcrumb': (),
-              'metadata': {'selected-by-default': False}},
+              'metadata': {'selected-by-default': False,
+                           'forced-replication-method': {
+                              'replication-method': 'FULL_TABLE',
+                              'reason': 'No key properties found for table'}}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'varchar'}},

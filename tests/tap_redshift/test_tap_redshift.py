@@ -191,7 +191,6 @@ class TestRedShiftTap(object):
 
             actual_metadata = metadata.to_map(actual_entry.metadata)
             expected_metadata = metadata.to_map(expected_entry.metadata)
-
             for bcrumb, actual_mdata in actual_metadata.items():
                 for mdata_key, actual_value in actual_mdata.items():
                     assert_that(
@@ -207,15 +206,19 @@ class TestRedShiftTap(object):
                  'nullable': 'YES'},
                 {'pos': 3, 'name': 'col3', 'type': 'timestamptz',
                  'nullable': 'NO'}]
+        key_properties = ['col1']
         expected_mdata = metadata.new()
         metadata.write(expected_mdata, (), 'selected-by-default', False)
+        metadata.write(expected_mdata, (), 'valid-replication-keys',
+                       key_properties)
         for col in cols:
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'selected-by-default', True)
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'sql-datatype', col['type'])
 
-        actual_mdata = tap_redshift.create_column_metadata(cols)
+        actual_mdata = tap_redshift.create_column_metadata(cols,
+                                                           key_properties)
         assert_that(actual_mdata, equal_to(metadata.to_list(expected_mdata)))
 
     def test_type_int4(self):

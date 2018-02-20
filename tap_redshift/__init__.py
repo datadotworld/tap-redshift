@@ -36,7 +36,7 @@ from singer.schema import Schema
 
 from tap_redshift import resolve
 
-__version__ = '1.0.0b3'
+__version__ = '1.0.0b4'
 
 LOGGER = singer.get_logger()
 
@@ -121,7 +121,11 @@ def discover_catalog(conn, db_schema):
         schema = Schema(type='object',
                         properties={
                             c['name']: schema_for_column(c) for c in cols})
-        metadata = create_column_metadata(cols)
+        key_properties = [
+            column for column in table_pks.get(table_name, [])
+            if schema.properties[column].inclusion != 'unsupported']
+
+        metadata = create_column_metadata(cols, key_properties)
         tap_stream_id = '{}.{}'.format(
             conn.get_dsn_parameters()['dbname'], qualified_table_name)
         entry = CatalogEntry(
@@ -131,10 +135,6 @@ def discover_catalog(conn, db_schema):
             schema=schema,
             table=qualified_table_name,
             metadata=metadata)
-
-        key_properties = [
-            column for column in table_pks.get(table_name, [])
-            if schema.properties[column].inclusion != 'unsupported']
 
         if key_properties:
             entry.key_properties = key_properties
@@ -190,9 +190,21 @@ def schema_for_column(c):
     return result
 
 
-def create_column_metadata(cols):
+def create_column_metadata(cols, key_properties):
+    print(cols, 'colssssss')
+    for col in cols:
+        print(col.get('type'))
     mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
+    # Use Redshift primary_keys as valid replication-keys
+    if key_properties:
+        mdata = metadata.write(mdata, (), 'valid-replication-keys',
+                               key_properties)
+    else:
+        mdata = metadata.write(mdata, (), 'forced-replication-method', {
+            'replication-method': 'FULL_TABLE',
+            'reason': 'No key properties found for table'})
+
     for c in cols:
         schema = schema_for_column(c)
         mdata = metadata.write(mdata,
