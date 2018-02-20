@@ -121,11 +121,7 @@ def discover_catalog(conn, db_schema):
         schema = Schema(type='object',
                         properties={
                             c['name']: schema_for_column(c) for c in cols})
-        key_properties = [
-            column for column in table_pks.get(table_name, [])
-            if schema.properties[column].inclusion != 'unsupported']
-
-        metadata = create_column_metadata(cols, key_properties)
+        metadata = create_column_metadata(cols)
         tap_stream_id = '{}.{}'.format(
             conn.get_dsn_parameters()['dbname'], qualified_table_name)
         entry = CatalogEntry(
@@ -135,6 +131,9 @@ def discover_catalog(conn, db_schema):
             schema=schema,
             table=qualified_table_name,
             metadata=metadata)
+        key_properties = [
+            column for column in table_pks.get(table_name, [])
+            if schema.properties[column].inclusion != 'unsupported']
 
         if key_properties:
             entry.key_properties = key_properties
@@ -190,23 +189,24 @@ def schema_for_column(c):
     return result
 
 
-def create_column_metadata(cols, key_properties):
-    print(cols, 'colssssss')
-    for col in cols:
-        print(col.get('type'))
+def create_column_metadata(cols):
     mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
-    # Use Redshift primary_keys as valid replication-keys
-    if key_properties:
-        mdata = metadata.write(mdata, (), 'valid-replication-keys',
-                               key_properties)
-    else:
-        mdata = metadata.write(mdata, (), 'forced-replication-method', {
-            'replication-method': 'FULL_TABLE',
-            'reason': 'No key properties found for table'})
 
     for c in cols:
+        valid_rep_keys = [c['name'] for c in cols
+                          if c['type'] == 'timestamp'
+                          or c['type'] == 'timestamptz']
         schema = schema_for_column(c)
+
+        if valid_rep_keys:
+            mdata = metadata.write(mdata, (), 'valid-replication-keys',
+                                   valid_rep_keys)
+        else:
+            mdata = metadata.write(mdata, (), 'forced-replication-method', {
+                'replication-method': 'FULL_TABLE',
+                'reason': 'No replication keys found from table'})
+
         mdata = metadata.write(mdata,
                                ('properties', c['name']),
                                'selected-by-default',

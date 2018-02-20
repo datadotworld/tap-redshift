@@ -206,19 +206,18 @@ class TestRedShiftTap(object):
                  'nullable': 'YES'},
                 {'pos': 3, 'name': 'col3', 'type': 'timestamptz',
                  'nullable': 'NO'}]
-        key_properties = ['col1']
         expected_mdata = metadata.new()
         metadata.write(expected_mdata, (), 'selected-by-default', False)
-        metadata.write(expected_mdata, (), 'valid-replication-keys',
-                       key_properties)
         for col in cols:
+            metadata.write(expected_mdata, (),
+                           'valid-replication-keys',
+                           ['col3'])
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'selected-by-default', True)
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'sql-datatype', col['type'])
 
-        actual_mdata = tap_redshift.create_column_metadata(cols,
-                                                           key_properties)
+        actual_mdata = tap_redshift.create_column_metadata(cols)
         assert_that(actual_mdata, equal_to(metadata.to_list(expected_mdata)))
 
     def test_type_int4(self):

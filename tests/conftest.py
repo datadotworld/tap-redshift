@@ -104,7 +104,7 @@ def expected_catalog_from_db():
          'metadata': [
              {'breadcrumb': (),
               'metadata': {'selected-by-default': False,
-                           'valid-replication-keys': ['col1']}},
+                           'valid-replication-keys': ['col3']}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'int2'}},
@@ -136,7 +136,10 @@ def expected_catalog_from_db():
          'metadata': [
              {'breadcrumb': (),
               'metadata': {'selected-by-default': False,
-                           'valid-replication-keys': ['col1', 'col2']}},
+                           'forced-replication-method': {
+                            'replication-method': 'FULL_TABLE',
+                            'reason': 'No replication keys found from table'
+                           }}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'int4'}},
@@ -161,8 +164,9 @@ def expected_catalog_from_db():
              {'breadcrumb': (),
               'metadata': {'selected-by-default': False,
                            'forced-replication-method': {
-                              'replication-method': 'FULL_TABLE',
-                              'reason': 'No key properties found for table'}}},
+                            'replication-method': 'FULL_TABLE',
+                            'reason': 'No replication keys found from table'
+                           }}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'varchar'}},
