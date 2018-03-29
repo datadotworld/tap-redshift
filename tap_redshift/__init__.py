@@ -198,20 +198,13 @@ def schema_for_column(c):
 def create_column_metadata(cols):
     mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
+    valid_rep_keys = []
 
     for c in cols:
-        valid_rep_keys = [c['name'] for c in cols
-                          if c['type'] == 'timestamp'
-                          or c['type'] == 'timestamptz']
-        schema = schema_for_column(c)
+        if c['type'] in DATETIME_TYPES:
+            valid_rep_keys.append(c['name'])
 
-        if valid_rep_keys:
-            mdata = metadata.write(mdata, (), 'valid-replication-keys',
-                                   valid_rep_keys)
-        else:
-            mdata = metadata.write(mdata, (), 'forced-replication-method', {
-                'replication-method': 'FULL_TABLE',
-                'reason': 'No replication keys found from table'})
+        schema = schema_for_column(c)
 
         mdata = metadata.write(mdata,
                                ('properties', c['name']),
@@ -221,6 +214,13 @@ def create_column_metadata(cols):
                                ('properties', c['name']),
                                'sql-datatype',
                                c['type'].lower())
+    if valid_rep_keys:
+        mdata = metadata.write(mdata, (), 'valid-replication-keys',
+                               valid_rep_keys)
+    else:
+        mdata = metadata.write(mdata, (), 'forced-replication-method', {
+            'replication-method': 'FULL_TABLE',
+            'reason': 'No replication keys found from table'})
 
     return metadata.to_list(mdata)
 
