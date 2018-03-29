@@ -60,7 +60,9 @@ BYTES_FOR_INTEGER_TYPE = {
 
 FLOAT_TYPES = {'float', 'float4', 'float8'}
 
-DATETIME_TYPES = {'timestamp', 'timestamptz', 'date',
+DATE_TYPES = {'date'}
+
+DATETIME_TYPES = {'timestamp', 'timestamptz',
                   'timestamp without time zone', 'timestamp with time zone'}
 
 
@@ -176,6 +178,10 @@ def schema_for_column(c):
     elif column_type in DATETIME_TYPES:
         result.type = 'string'
         result.format = 'date-time'
+
+    elif column_type in DATE_TYPES:
+        result.type = 'string'
+        result.format = 'date'
 
     else:
         result = Schema(None,
