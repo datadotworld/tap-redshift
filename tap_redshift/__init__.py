@@ -36,7 +36,7 @@ from singer.schema import Schema
 
 from tap_redshift import resolve
 
-__version__ = '1.0.0b3'
+__version__ = '1.0.0b4'
 
 LOGGER = singer.get_logger()
 
@@ -60,7 +60,9 @@ BYTES_FOR_INTEGER_TYPE = {
 
 FLOAT_TYPES = {'float', 'float4', 'float8'}
 
-DATETIME_TYPES = {'timestamp', 'timestamptz', 'date',
+DATE_TYPES = {'date'}
+
+DATETIME_TYPES = {'timestamp', 'timestamptz',
                   'timestamp without time zone', 'timestamp with time zone'}
 
 
@@ -131,7 +133,6 @@ def discover_catalog(conn, db_schema):
             schema=schema,
             table=qualified_table_name,
             metadata=metadata)
-
         key_properties = [
             column for column in table_pks.get(table_name, [])
             if schema.properties[column].inclusion != 'unsupported']
@@ -178,6 +179,10 @@ def schema_for_column(c):
         result.type = 'string'
         result.format = 'date-time'
 
+    elif column_type in DATE_TYPES:
+        result.type = 'string'
+        result.format = 'date'
+
     else:
         result = Schema(None,
                         inclusion='unsupported',
@@ -193,8 +198,14 @@ def schema_for_column(c):
 def create_column_metadata(cols):
     mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
+    valid_rep_keys = []
+
     for c in cols:
+        if c['type'] in DATETIME_TYPES:
+            valid_rep_keys.append(c['name'])
+
         schema = schema_for_column(c)
+
         mdata = metadata.write(mdata,
                                ('properties', c['name']),
                                'selected-by-default',
@@ -203,6 +214,13 @@ def create_column_metadata(cols):
                                ('properties', c['name']),
                                'sql-datatype',
                                c['type'].lower())
+    if valid_rep_keys:
+        mdata = metadata.write(mdata, (), 'valid-replication-keys',
+                               valid_rep_keys)
+    else:
+        mdata = metadata.write(mdata, (), 'forced-replication-method', {
+            'replication-method': 'FULL_TABLE',
+            'reason': 'No replication keys found from table'})
 
     return metadata.to_list(mdata)
 

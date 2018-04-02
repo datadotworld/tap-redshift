@@ -61,6 +61,12 @@ sample_db_data = {
         {
             'type': 'date',
             'pos': 6,
+            'name': 'date_expired',
+            'nullable': 'YES'
+        },
+        {
+            'type': 'timestamp',
+            'pos': 7,
             'name': 'date_created',
             'nullable': 'YES'
         }
@@ -111,12 +117,27 @@ expected_result = {
                             'null',
                             'string'
                         ],
+                        'format': 'date',
+                        'inclusion': 'available'
+                    },
+                    'created_at': {
+                        'type': [
+                            'null',
+                            'string'
+                        ],
                         'format': 'date-time',
                         'inclusion': 'available'
                     }
                 },
             },
             'metadata': [
+                {
+                    'metadata': {
+                        'selected-by-default': False,
+                        'valid-replication-keys': ['created_at']
+                    },
+                    'breadcrumb': ()
+                },
                 {
                     'metadata': {
                         'sql-datatype': 'int4',
@@ -154,16 +175,22 @@ expected_result = {
                 },
                 {
                     'metadata': {
-                        'sql-datatype': 'timestamptz',
+                        'sql-datatype': 'date',
                         'selected-by-default': True
                     },
                     'breadcrumb': ['properties', 'expires_at']
+                },
+                {
+                    'metadata': {
+                        'sql-datatype': 'timestamptz',
+                        'selected-by-default': True
+                    },
+                    'breadcrumb': ['properties', 'created_at']
                 },
             ],
             'key_properties': [
                 'id'
             ],
-            'is_view': False,
             'table_name': 'fake name',
             'stream': 'fake stream',
             'tap_stream_id': 'FakeDB-fake name'
@@ -191,7 +218,6 @@ class TestRedShiftTap(object):
 
             actual_metadata = metadata.to_map(actual_entry.metadata)
             expected_metadata = metadata.to_map(expected_entry.metadata)
-
             for bcrumb, actual_mdata in actual_metadata.items():
                 for mdata_key, actual_value in actual_mdata.items():
                     assert_that(
@@ -210,6 +236,9 @@ class TestRedShiftTap(object):
         expected_mdata = metadata.new()
         metadata.write(expected_mdata, (), 'selected-by-default', False)
         for col in cols:
+            metadata.write(expected_mdata, (),
+                           'valid-replication-keys',
+                           ['col3'])
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'selected-by-default', True)
             metadata.write(expected_mdata, (
@@ -259,5 +288,26 @@ class TestRedShiftTap(object):
         stream_schema = expected_result['streams'][0]
         expected_schema = stream_schema['schema']['properties']['expires_at']
         assert_that(column_schema, equal_to(expected_schema))
+
+    def test_type_date_time(self):
+        col = sample_db_data['columns'][6]
+        column_schema = tap_redshift.schema_for_column(col).to_dict()
+        stream_schema = expected_result['streams'][0]
+        expected_schema = stream_schema['schema']['properties']['created_at']
+        assert_that(column_schema, equal_to(expected_schema))
+
+    def test_valid_rep_keys(self, discovery_conn, expected_catalog_from_db):
+        actual_catalog = tap_redshift.discover_catalog(discovery_conn,
+                                                       'public')
+        for i, actual_entry in enumerate(actual_catalog.streams):
+            expected_entry = expected_catalog_from_db.streams[i]
+            actual_metadata = metadata.to_map(actual_entry.metadata)
+            expected_metadata = metadata.to_map(expected_entry.metadata)
+            actual_valid_rep_keys = metadata.get(
+                actual_metadata, (), 'valid-replication-keys')
+            expected_valid_rep_keys = metadata.get(
+                expected_metadata, (), 'valid-replication-keys')
+            assert_that(actual_valid_rep_keys,
+                        equal_to(expected_valid_rep_keys))
 
         # TODO write tests for full and incremental sync

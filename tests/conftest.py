@@ -66,6 +66,8 @@ def column_specs_cursor():
         result = [('table1', 1, 'col1', 'int2', 'NO'),
                   ('table1', 2, 'col2', 'float8', 'YES'),
                   ('table1', 3, 'col3', 'timestamptz', 'NO'),
+                  ('table1', 4, 'col4', 'timestamp', 'NO'),
+                  ('table1', 5, 'col5', 'timestamp with time zone', 'NO'),
                   ('table2', 1, 'col1', 'int4', 'NO'),
                   ('table2', 2, 'col2', 'bool', 'YES'),
                   ('view1', 1, 'col1', 'varchar', 'NO'),
@@ -97,13 +99,23 @@ def expected_catalog_from_db():
                  'col3': {
                      'inclusion': 'available',
                      'format': 'date-time',
+                     'type': 'string'},
+                 'col4': {
+                     'inclusion': 'available',
+                     'format': 'date-time',
+                     'type': 'string'},
+                 'col5': {
+                     'inclusion': 'available',
+                     'format': 'date-time',
                      'type': 'string'}},
              'type': 'object'},
          'is_view': False,
          'stream': 'table1',
          'metadata': [
              {'breadcrumb': (),
-              'metadata': {'selected-by-default': False}},
+              'metadata': {'selected-by-default': False,
+                           'valid-replication-keys': [
+                               'col3', 'col4', 'col5']}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'int2'}},
@@ -112,7 +124,13 @@ def expected_catalog_from_db():
                            'sql-datatype': 'float8'}},
              {'breadcrumb': ('properties', 'col3'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'timestamptz'}}
+                           'sql-datatype': 'timestamptz'}},
+             {'breadcrumb': ('properties', 'col4'),
+              'metadata': {'selected-by-default': True,
+                           'sql-datatype': 'timestamp'}},
+             {'breadcrumb': ('properties', 'col5'),
+              'metadata': {'selected-by-default': True,
+                           'sql-datatype': 'timestamp with time zone'}}
          ]},
         {'tap_stream_id': 'test-db.public.table2',
          'database_name': 'test-db',
@@ -134,7 +152,11 @@ def expected_catalog_from_db():
          'stream': 'table2',
          'metadata': [
              {'breadcrumb': (),
-              'metadata': {'selected-by-default': False}},
+              'metadata': {'selected-by-default': False,
+                           'forced-replication-method': {
+                            'replication-method': 'FULL_TABLE',
+                            'reason': 'No replication keys found from table'
+                           }}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'int4'}},
@@ -157,7 +179,11 @@ def expected_catalog_from_db():
          'stream': 'view1',
          'metadata': [
              {'breadcrumb': (),
-              'metadata': {'selected-by-default': False}},
+              'metadata': {'selected-by-default': False,
+                           'forced-replication-method': {
+                            'replication-method': 'FULL_TABLE',
+                            'reason': 'No replication keys found from table'
+                           }}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
                            'sql-datatype': 'varchar'}},
