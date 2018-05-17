@@ -66,6 +66,8 @@ DATE_TYPES = {'date'}
 DATETIME_TYPES = {'timestamp', 'timestamptz',
                   'timestamp without time zone', 'timestamp with time zone'}
 
+CONFIG = {}
+
 
 def discover_catalog(conn, db_schema):
     '''Returns a Catalog describing the structure of the database.'''
@@ -287,10 +289,11 @@ def sync_table(connection, catalog_entry, state):
             ','.join(columns),
             catalog_entry.table)
         params = {}
-
+        start_date = str(datetime.datetime.strptime(
+            CONFIG.get('start_date'), '%Y-%m-%dT%H:%M:%SZ'))
         replication_key_value = singer.get_bookmark(state,
                                                     tap_stream_id,
-                                                    'replication_key_value')
+                                                    'replication_key_value') or start_date
         replication_key = singer.get_bookmark(state,
                                               tap_stream_id,
                                               'replication_key')
@@ -462,6 +465,7 @@ def build_state(raw_state, catalog):
 
 def main_impl():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
+    CONFIG.update(args.config)
     connection = open_connection(args.config)
     db_schema = args.config.get('schema', 'public')
     if args.discover:
