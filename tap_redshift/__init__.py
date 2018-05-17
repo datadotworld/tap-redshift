@@ -274,6 +274,8 @@ def row_to_record(catalog_entry, version, row, columns, time_extracted):
 
 def sync_table(connection, catalog_entry, state):
     columns = list(catalog_entry.schema.properties.keys())
+    start_date = CONFIG.get('start_date')
+    formatted_start_date = None
 
     if not columns:
         LOGGER.warning(
@@ -289,13 +291,16 @@ def sync_table(connection, catalog_entry, state):
             ','.join(columns),
             catalog_entry.table)
         params = {}
-        start_date = str(datetime.datetime.strptime(
-            CONFIG.get('start_date'), '%Y-%m-%dT%H:%M:%SZ'))
+
+        if start_date is not None:
+            formatted_start_date = str(datetime.datetime.strptime(
+                start_date, '%Y-%m-%dT%H:%M:%SZ'))
+
         replication_key_value = singer.get_bookmark(
                                     state,
                                     tap_stream_id,
                                     'replication_key_value'
-                                ) or start_date
+                                ) or formatted_start_date
         replication_key = singer.get_bookmark(state,
                                               tap_stream_id,
                                               'replication_key')
