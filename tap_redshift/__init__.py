@@ -45,7 +45,8 @@ REQUIRED_CONFIG_KEYS = [
     'port',
     'dbname',
     'user',
-    'password'
+    'password',
+    'start_date'
 ]
 
 STRING_TYPES = {'char', 'character', 'nchar', 'bpchar', 'text', 'varchar',
@@ -147,7 +148,9 @@ def discover_catalog(conn, db_schema):
 
 
 def do_discover(conn, db_schema):
+    LOGGER.info("Running discover")
     discover_catalog(conn, db_schema).dump()
+    LOGGER.info("Completed discover")
 
 
 def schema_for_column(c):
@@ -238,6 +241,7 @@ def open_connection(config):
         dbname=dbname[0],
         user=user[0],
         password=password)
+    LOGGER.info('Connected to Redshift')
     return connection
 
 
@@ -276,6 +280,7 @@ def sync_table(connection, catalog_entry, state):
         return
 
     tap_stream_id = catalog_entry.tap_stream_id
+    LOGGER.info('Beginning sync for {} table'.format(tap_stream_id))
     with connection.cursor() as cursor:
         columns = [c for c in columns]
         select = 'SELECT {} FROM {}'.format(
@@ -400,16 +405,17 @@ def coerce_datetime(o):
 
 
 def do_sync(conn, db_schema, catalog, state):
+    LOGGER.info("Starting Redshift sync")
     for message in generate_messages(conn, db_schema, catalog, state):
         sys.stdout.write(json.dumps(message.asdict(),
                          default=coerce_datetime,
                          use_decimal=True) + '\n')
         sys.stdout.flush()
+    LOGGER.info("Completed sync")
 
 
 def build_state(raw_state, catalog):
-    LOGGER.info('Building State from raw state {} and catalog {}'
-                .format(raw_state, catalog.to_dict()))
+    LOGGER.info('Building State from raw state {}'.format(raw_state))
 
     state = {}
 
