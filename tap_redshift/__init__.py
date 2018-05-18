@@ -296,23 +296,19 @@ def sync_table(connection, catalog_entry, state):
             formatted_start_date = str(datetime.datetime.strptime(
                 start_date, '%Y-%m-%dT%H:%M:%SZ'))
 
-        replication_key_value = singer.get_bookmark(
-                                    state,
-                                    tap_stream_id,
-                                    'replication_key_value'
-                                ) or formatted_start_date
         replication_key = singer.get_bookmark(state,
                                               tap_stream_id,
                                               'replication_key')
-
+        replication_key_value = None
         bookmark_is_empty = state.get('bookmarks', {}).get(
             tap_stream_id) is None
-
         stream_version = get_stream_version(tap_stream_id, state)
-        state = singer.write_bookmark(state,
-                                      tap_stream_id,
-                                      'version',
-                                      stream_version)
+        state = singer.write_bookmark(
+            state,
+            tap_stream_id,
+            'version',
+            stream_version
+        )
         activate_version_message = singer.ActivateVersionMessage(
             stream=catalog_entry.stream,
             version=stream_version
@@ -326,6 +322,13 @@ def sync_table(connection, catalog_entry, state):
         # version.
         if replication_key or bookmark_is_empty:
             yield activate_version_message
+
+        if replication_key:
+            replication_key_value = singer.get_bookmark(
+                state,
+                tap_stream_id,
+                'replication_key_value'
+            ) or formatted_start_date
 
         if replication_key_value is not None:
             entry_schema = catalog_entry.schema
