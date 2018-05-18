@@ -45,7 +45,8 @@ REQUIRED_CONFIG_KEYS = [
     'port',
     'dbname',
     'user',
-    'password'
+    'password',
+    'start_date'
 ]
 
 STRING_TYPES = {'char', 'character', 'nchar', 'bpchar', 'text', 'varchar',
@@ -64,6 +65,8 @@ DATE_TYPES = {'date'}
 
 DATETIME_TYPES = {'timestamp', 'timestamptz',
                   'timestamp without time zone', 'timestamp with time zone'}
+
+CONFIG = {}
 
 
 def discover_catalog(conn, db_schema):
@@ -147,7 +150,9 @@ def discover_catalog(conn, db_schema):
 
 
 def do_discover(conn, db_schema):
+    LOGGER.info("Running discover")
     discover_catalog(conn, db_schema).dump()
+    LOGGER.info("Completed discover")
 
 
 def schema_for_column(c):
@@ -238,6 +243,7 @@ def open_connection(config):
         dbname=dbname[0],
         user=user[0],
         password=password)
+    LOGGER.info('Connected to Redshift')
     return connection
 
 
@@ -268,6 +274,8 @@ def row_to_record(catalog_entry, version, row, columns, time_extracted):
 
 def sync_table(connection, catalog_entry, state):
     columns = list(catalog_entry.schema.properties.keys())
+    start_date = CONFIG.get('start_date')
+    formatted_start_date = None
 
     if not columns:
         LOGGER.warning(
@@ -276,6 +284,7 @@ def sync_table(connection, catalog_entry, state):
         return
 
     tap_stream_id = catalog_entry.tap_stream_id
+    LOGGER.info('Beginning sync for {} table'.format(tap_stream_id))
     with connection.cursor() as cursor:
         columns = [c for c in columns]
         select = 'SELECT {} FROM {}'.format(
@@ -283,21 +292,23 @@ def sync_table(connection, catalog_entry, state):
             catalog_entry.table)
         params = {}
 
-        replication_key_value = singer.get_bookmark(state,
-                                                    tap_stream_id,
-                                                    'replication_key_value')
+        if start_date is not None:
+            formatted_start_date = str(datetime.datetime.strptime(
+                start_date, '%Y-%m-%dT%H:%M:%SZ'))
+
         replication_key = singer.get_bookmark(state,
                                               tap_stream_id,
                                               'replication_key')
-
+        replication_key_value = None
         bookmark_is_empty = state.get('bookmarks', {}).get(
             tap_stream_id) is None
-
         stream_version = get_stream_version(tap_stream_id, state)
-        state = singer.write_bookmark(state,
-                                      tap_stream_id,
-                                      'version',
-                                      stream_version)
+        state = singer.write_bookmark(
+            state,
+            tap_stream_id,
+            'version',
+            stream_version
+        )
         activate_version_message = singer.ActivateVersionMessage(
             stream=catalog_entry.stream,
             version=stream_version
@@ -311,6 +322,13 @@ def sync_table(connection, catalog_entry, state):
         # version.
         if replication_key or bookmark_is_empty:
             yield activate_version_message
+
+        if replication_key:
+            replication_key_value = singer.get_bookmark(
+                state,
+                tap_stream_id,
+                'replication_key_value'
+            ) or formatted_start_date
 
         if replication_key_value is not None:
             entry_schema = catalog_entry.schema
@@ -400,16 +418,17 @@ def coerce_datetime(o):
 
 
 def do_sync(conn, db_schema, catalog, state):
+    LOGGER.info("Starting Redshift sync")
     for message in generate_messages(conn, db_schema, catalog, state):
         sys.stdout.write(json.dumps(message.asdict(),
                          default=coerce_datetime,
                          use_decimal=True) + '\n')
         sys.stdout.flush()
+    LOGGER.info("Completed sync")
 
 
 def build_state(raw_state, catalog):
-    LOGGER.info('Building State from raw state {} and catalog {}'
-                .format(raw_state, catalog.to_dict()))
+    LOGGER.info('Building State from raw state {}'.format(raw_state))
 
     state = {}
 
@@ -456,6 +475,7 @@ def build_state(raw_state, catalog):
 
 def main_impl():
     args = utils.parse_args(REQUIRED_CONFIG_KEYS)
+    CONFIG.update(args.config)
     connection = open_connection(args.config)
     db_schema = args.config.get('schema', 'public')
     if args.discover:
