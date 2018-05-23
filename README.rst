@@ -31,7 +31,7 @@ Example:
 .. code-block:: json
 
     {
-        "host": "REDSHIFT_HOSTT",
+        "host": "REDSHIFT_HOST",
         "port": "REDSHIFT_PORT",
         "dbname": "REDSHIFT_DBNAME",
         "user": "REDSHIFT_USER",
