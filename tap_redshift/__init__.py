@@ -286,7 +286,7 @@ def sync_table(connection, catalog_entry, state):
     tap_stream_id = catalog_entry.tap_stream_id
     LOGGER.info('Beginning sync for {} table'.format(tap_stream_id))
     with connection.cursor() as cursor:
-        columns = [c for c in columns]
+        columns = ['"{}"'.format(c) for c in columns]
         select = 'SELECT {} FROM {}'.format(
             ','.join(columns),
             catalog_entry.table)
