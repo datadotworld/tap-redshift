@@ -289,7 +289,7 @@ def sync_table(connection, catalog_entry, state):
         columns = ['"{}"'.format(c) for c in columns]
         select = 'SELECT {} FROM {}'.format(
             ','.join(columns),
-            catalog_entry.table)
+            '"{}"'.format(catalog_entry.table))
         params = {}
 
         if start_date is not None:
