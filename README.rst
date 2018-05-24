@@ -21,7 +21,7 @@ The json file requires the following attributes;
 * ``dbname``
 * ``user``
 * ``password``
-* ``start_date`` (Notation: yyyymmddThhmmssZ)
+* ``start_date`` (Notation: yyyy-mm-ddThh:mm:ssZ)
 
 And an optional attribute;
 
