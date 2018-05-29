@@ -21,6 +21,7 @@ The json file requires the following attributes;
 * ``dbname``
 * ``user``
 * ``password``
+* ``start_date`` (Notation: yyyy-mm-ddThh:mm:ssZ)
 
 And an optional attribute;
 
@@ -36,6 +37,7 @@ Example:
         "dbname": "REDSHIFT_DBNAME",
         "user": "REDSHIFT_USER",
         "password": "REDSHIFT_PASSWORD",
+        "start_date": "REDSHIFT_START_DATE",
         "schema": "REDSHIFT_SCHEMA"
     }
 
