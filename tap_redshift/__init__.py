@@ -287,9 +287,11 @@ def sync_table(connection, catalog_entry, state):
     LOGGER.info('Beginning sync for {} table'.format(tap_stream_id))
     with connection.cursor() as cursor:
         columns = ['"{}"'.format(c) for c in columns]
-        select = 'SELECT {} FROM {}'.format(
+        schema, table = catalog_entry.table.split('.')
+        select = 'SELECT {} FROM {}.{}'.format(
             ','.join(columns),
-            catalog_entry.table)
+            '"{}"'.format(schema),
+            '"{}"'.format(table))
         params = {}
 
         if start_date is not None:
