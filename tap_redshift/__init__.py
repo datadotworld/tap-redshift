@@ -36,7 +36,7 @@ from singer.schema import Schema
 
 from tap_redshift import resolve
 
-__version__ = '1.0.0b6'
+__version__ = '1.0.0b7'
 
 LOGGER = singer.get_logger()
 
@@ -286,10 +286,9 @@ def sync_table(connection, catalog_entry, state):
     tap_stream_id = catalog_entry.tap_stream_id
     LOGGER.info('Beginning sync for {} table'.format(tap_stream_id))
     with connection.cursor() as cursor:
-        columns = ['"{}"'.format(c) for c in columns]
         schema, table = catalog_entry.table.split('.')
         select = 'SELECT {} FROM {}.{}'.format(
-            ','.join(columns),
+            ','.join('"{}"'.format(c) for c in columns),
             '"{}"'.format(schema),
             '"{}"'.format(table))
         params = {}
