@@ -36,7 +36,7 @@ from singer.schema import Schema
 
 from tap_redshift import resolve
 
-__version__ = '1.0.0b7'
+__version__ = '1.0.0b8'
 
 LOGGER = singer.get_logger()
 
@@ -126,7 +126,12 @@ def discover_catalog(conn, db_schema):
         schema = Schema(type='object',
                         properties={
                             c['name']: schema_for_column(c) for c in cols})
-        metadata = create_column_metadata(cols)
+        key_properties = [
+            column for column in table_pks.get(table_name, [])
+            if schema.properties[column].inclusion != 'unsupported']
+        is_view = table_types.get(table_name) == 'VIEW'
+        metadata = create_column_metadata(
+            cols, is_view, table_name, key_properties)
         tap_stream_id = '{}.{}'.format(
             conn.get_dsn_parameters()['dbname'], qualified_table_name)
         entry = CatalogEntry(
@@ -136,14 +141,7 @@ def discover_catalog(conn, db_schema):
             schema=schema,
             table=qualified_table_name,
             metadata=metadata)
-        key_properties = [
-            column for column in table_pks.get(table_name, [])
-            if schema.properties[column].inclusion != 'unsupported']
 
-        if key_properties:
-            entry.key_properties = key_properties
-
-        entry.is_view = table_types.get(table_name) == 'VIEW'
         entries.append(entry)
 
     return Catalog(entries)
@@ -200,9 +198,12 @@ def schema_for_column(c):
     return result
 
 
-def create_column_metadata(cols):
+def create_column_metadata(cols, is_view, table_name, key_properties=[]):
     mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
+    mdata = metadata.write(mdata, (), 'table-key-properties', key_properties)
+    mdata = metadata.write(mdata, (), 'is-view', is_view)
+    mdata = metadata.write(mdata, (), 'schema-name', table_name)
     valid_rep_keys = []
 
     for c in cols:
@@ -219,6 +220,10 @@ def create_column_metadata(cols):
                                ('properties', c['name']),
                                'sql-datatype',
                                c['type'].lower())
+        mdata = metadata.write(mdata,
+                               ('properties', c['name']),
+                               'inclusion',
+                               schema.inclusion)
     if valid_rep_keys:
         mdata = metadata.write(mdata, (), 'valid-replication-keys',
                                valid_rep_keys)
@@ -297,9 +302,8 @@ def sync_table(connection, catalog_entry, state):
             formatted_start_date = str(datetime.datetime.strptime(
                 start_date, '%Y-%m-%dT%H:%M:%SZ'))
 
-        replication_key = singer.get_bookmark(state,
-                                              tap_stream_id,
-                                              'replication_key')
+        replication_key = metadata.to_map(catalog_entry.metadata).get(
+            (), {}).get('replication-key')
         replication_key_value = None
         bookmark_is_empty = state.get('bookmarks', {}).get(
             tap_stream_id) is None
@@ -389,6 +393,11 @@ def generate_messages(conn, db_schema, catalog, state):
     for catalog_entry in catalog.streams:
         state = singer.set_currently_syncing(state,
                                              catalog_entry.tap_stream_id)
+        key_properties = metadata.to_map(catalog_entry.metadata).get(
+            (), {}).get('table-key-properties')
+
+        bookmark_properties = metadata.to_map(catalog_entry.metadata).get(
+            (), {}).get('replication-key')
 
         # Emit a state message to indicate that we've started this stream
         yield singer.StateMessage(value=copy.deepcopy(state))
@@ -397,7 +406,8 @@ def generate_messages(conn, db_schema, catalog, state):
         yield singer.SchemaMessage(
             stream=catalog_entry.stream,
             schema=catalog_entry.schema.to_dict(),
-            key_properties=catalog_entry.key_properties)
+            key_properties=key_properties,
+            bookmark_properties=bookmark_properties)
 
         # Emit a RECORD message for each record in the result set
         with metrics.job_timer('sync_table') as timer:
@@ -439,33 +449,37 @@ def build_state(raw_state, catalog):
 
     for catalog_entry in catalog.streams:
         tap_stream_id = catalog_entry.tap_stream_id
-        if catalog_entry.replication_key:
-            state = singer.write_bookmark(state,
-                                          tap_stream_id,
-                                          'replication_key',
-                                          catalog_entry.replication_key)
+        catalog_metadata = metadata.to_map(catalog_entry.metadata)
+        replication_method = catalog_metadata.get(
+            (), {}).get('replication-method')
+        raw_stream_version = singer.get_bookmark(
+            raw_state, tap_stream_id, 'version')
+
+        if replication_method == 'INCREMENTAL':
+            replication_key = catalog_metadata.get(
+                (), {}).get('replication-key')
+
+            state = singer.write_bookmark(
+                state, tap_stream_id, 'replication_key', replication_key)
 
             # Only keep the existing replication_key_value if the
             # replication_key hasn't changed.
             raw_replication_key = singer.get_bookmark(raw_state,
                                                       tap_stream_id,
                                                       'replication_key')
-            if raw_replication_key == catalog_entry.replication_key:
-                rep_key_val = singer.get_bookmark(raw_state,
-                                                  tap_stream_id,
-                                                  'replication_key_value')
-                raw_replication_key_value = rep_key_val
+            if raw_replication_key == replication_key:
+                raw_replication_key_value = singer.get_bookmark(
+                    raw_state, tap_stream_id, 'replication_key_value')
                 state = singer.write_bookmark(state,
                                               tap_stream_id,
                                               'replication_key_value',
                                               raw_replication_key_value)
 
-        # Persist any existing version, even if it's None
-        if raw_state.get('bookmarks', {}).get(tap_stream_id):
-            raw_stream_version = singer.get_bookmark(raw_state,
-                                                     tap_stream_id,
-                                                     'version')
+            if raw_stream_version is not None:
+                state = singer.write_bookmark(
+                    state, tap_stream_id, 'version', raw_stream_version)
 
+        elif replication_method == 'FULL_TABLE' and raw_stream_version is None:
             state = singer.write_bookmark(state,
                                           tap_stream_id,
                                           'version',

@@ -120,10 +120,8 @@ def resolve_catalog(discovered, catalog, state):
             stream=catalog_entry.stream,
             database=catalog_entry.database,
             table=catalog_entry.table,
-            is_view=catalog_entry.is_view,
             schema=schema,
-            replication_key=catalog_entry.replication_key,
-            key_properties=catalog_entry.key_properties
+            metadata=catalog_entry.metadata
         ))
 
     return result

@@ -233,18 +233,29 @@ class TestRedShiftTap(object):
                  'nullable': 'YES'},
                 {'pos': 3, 'name': 'col3', 'type': 'timestamptz',
                  'nullable': 'NO'}]
+        table_name = 'test_table'
+        key_properties = ['col1']
+        is_view = False
         expected_mdata = metadata.new()
         metadata.write(expected_mdata, (), 'selected-by-default', False)
         for col in cols:
+            schema = tap_redshift.schema_for_column(col)
             metadata.write(expected_mdata, (),
                            'valid-replication-keys',
                            ['col3'])
+            metadata.write(expected_mdata, (),
+                           'table-key-properties', key_properties)
+            metadata.write(expected_mdata, (), 'is-view', is_view)
+            metadata.write(expected_mdata, (), 'schema-name', table_name)
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'selected-by-default', True)
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'sql-datatype', col['type'])
+            metadata.write(expected_mdata, (
+                'properties', col['name']), 'inclusion', schema.inclusion)
 
-        actual_mdata = tap_redshift.create_column_metadata(cols)
+        actual_mdata = tap_redshift.create_column_metadata(
+            cols, is_view, table_name, key_properties)
         assert_that(actual_mdata, equal_to(metadata.to_list(expected_mdata)))
 
     def test_type_int4(self):
@@ -296,18 +307,44 @@ class TestRedShiftTap(object):
         expected_schema = stream_schema['schema']['properties']['created_at']
         assert_that(column_schema, equal_to(expected_schema))
 
-    def test_valid_rep_keys(self, discovery_conn, expected_catalog_from_db):
+    def test_table_metadata(self, discovery_conn, expected_catalog_from_db):
         actual_catalog = tap_redshift.discover_catalog(discovery_conn,
                                                        'public')
         for i, actual_entry in enumerate(actual_catalog.streams):
             expected_entry = expected_catalog_from_db.streams[i]
             actual_metadata = metadata.to_map(actual_entry.metadata)
             expected_metadata = metadata.to_map(expected_entry.metadata)
+
             actual_valid_rep_keys = metadata.get(
                 actual_metadata, (), 'valid-replication-keys')
             expected_valid_rep_keys = metadata.get(
                 expected_metadata, (), 'valid-replication-keys')
+
             assert_that(actual_valid_rep_keys,
                         equal_to(expected_valid_rep_keys))
+
+            actual_table_key_properties = metadata.get(
+                actual_metadata, (), 'table-key-properties')
+            expected_table_key_properties = metadata.get(
+                expected_metadata, (), 'table-key-properties')
+
+            assert_that(actual_table_key_properties,
+                        equal_to(expected_table_key_properties))
+
+            actual_schema_name = metadata.get(
+                actual_metadata, (), 'schema-name')
+            expected_schema_name = metadata.get(
+                expected_metadata, (), 'schema-name')
+
+            assert_that(actual_schema_name,
+                        equal_to(expected_schema_name))
+
+            actual_is_view = metadata.get(
+                actual_metadata, (), 'is-view')
+            expected_is_view = metadata.get(
+                expected_metadata, (), 'is-view')
+
+            assert_that(actual_is_view,
+                        equal_to(expected_is_view))
 
         # TODO write tests for full and incremental sync
