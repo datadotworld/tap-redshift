@@ -198,7 +198,9 @@ def schema_for_column(c):
     return result
 
 
-def create_column_metadata(db_name, cols, is_view, table_name, key_properties=[]):
+def create_column_metadata(
+        db_name, cols, is_view,
+        table_name, key_properties=[]):
     mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
     if not is_view:

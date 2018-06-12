@@ -225,7 +225,8 @@ class TestRedShiftTap(object):
                         equal_to(metadata.get(
                             expected_metadata, bcrumb, mdata_key)))
 
-            assert_that(actual_entry, equal_to(expected_entry))
+            assert_that(sorted(actual_entry.to_dict()),
+                        equal_to(sorted(expected_entry.to_dict())))
 
     def test_create_column_metadata(self):
         cols = [{'pos': 1, 'name': 'col1', 'type': 'int2', 'nullable': 'NO'},
@@ -233,20 +234,20 @@ class TestRedShiftTap(object):
                  'nullable': 'YES'},
                 {'pos': 3, 'name': 'col3', 'type': 'timestamptz',
                  'nullable': 'NO'}]
+        db_name = 'test-db'
         table_name = 'test_table'
         key_properties = ['col1']
         is_view = False
         expected_mdata = metadata.new()
         metadata.write(expected_mdata, (), 'selected-by-default', False)
+        metadata.write(expected_mdata, (), 'valid-replication-keys', ['col3'])
+        metadata.write(expected_mdata, (),
+                       'table-key-properties', key_properties)
+        metadata.write(expected_mdata, (), 'is-view', is_view)
+        metadata.write(expected_mdata, (), 'schema-name', table_name)
+        metadata.write(expected_mdata, (), 'database-name', db_name)
         for col in cols:
             schema = tap_redshift.schema_for_column(col)
-            metadata.write(expected_mdata, (),
-                           'valid-replication-keys',
-                           ['col3'])
-            metadata.write(expected_mdata, (),
-                           'table-key-properties', key_properties)
-            metadata.write(expected_mdata, (), 'is-view', is_view)
-            metadata.write(expected_mdata, (), 'schema-name', table_name)
             metadata.write(expected_mdata, (
                 'properties', col['name']), 'selected-by-default', True)
             metadata.write(expected_mdata, (
@@ -255,7 +256,7 @@ class TestRedShiftTap(object):
                 'properties', col['name']), 'inclusion', schema.inclusion)
 
         actual_mdata = tap_redshift.create_column_metadata(
-            cols, is_view, table_name, key_properties)
+            db_name, cols, is_view, table_name, key_properties)
         assert_that(actual_mdata, equal_to(metadata.to_list(expected_mdata)))
 
     def test_type_int4(self):
