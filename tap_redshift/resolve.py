@@ -118,7 +118,6 @@ def resolve_catalog(discovered, catalog, state):
         result.streams.append(CatalogEntry(
             tap_stream_id=catalog_entry.tap_stream_id,
             stream=catalog_entry.stream,
-            database=catalog_entry.database,
             table=catalog_entry.table,
             schema=schema,
             metadata=catalog_entry.metadata

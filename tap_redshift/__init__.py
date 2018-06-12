@@ -130,12 +130,12 @@ def discover_catalog(conn, db_schema):
             column for column in table_pks.get(table_name, [])
             if schema.properties[column].inclusion != 'unsupported']
         is_view = table_types.get(table_name) == 'VIEW'
+        db_name = conn.get_dsn_parameters()['dbname']
         metadata = create_column_metadata(
-            cols, is_view, table_name, key_properties)
+            db_name, cols, is_view, table_name, key_properties)
         tap_stream_id = '{}.{}'.format(
-            conn.get_dsn_parameters()['dbname'], qualified_table_name)
+            db_name, qualified_table_name)
         entry = CatalogEntry(
-            database=conn.get_dsn_parameters()['dbname'],
             tap_stream_id=tap_stream_id,
             stream=table_name,
             schema=schema,
@@ -198,12 +198,18 @@ def schema_for_column(c):
     return result
 
 
-def create_column_metadata(cols, is_view, table_name, key_properties=[]):
+def create_column_metadata(db_name, cols, is_view, table_name, key_properties=[]):
     mdata = metadata.new()
     mdata = metadata.write(mdata, (), 'selected-by-default', False)
-    mdata = metadata.write(mdata, (), 'table-key-properties', key_properties)
+    if not is_view:
+        mdata = metadata.write(
+            mdata, (), 'table-key-properties', key_properties)
+    else:
+        mdata = metadata.write(
+            mdata, (), 'view-key-properties', key_properties)
     mdata = metadata.write(mdata, (), 'is-view', is_view)
     mdata = metadata.write(mdata, (), 'schema-name', table_name)
+    mdata = metadata.write(mdata, (), 'database-name', db_name)
     valid_rep_keys = []
 
     for c in cols:
@@ -393,11 +399,13 @@ def generate_messages(conn, db_schema, catalog, state):
     for catalog_entry in catalog.streams:
         state = singer.set_currently_syncing(state,
                                              catalog_entry.tap_stream_id)
-        key_properties = metadata.to_map(catalog_entry.metadata).get(
-            (), {}).get('table-key-properties')
+        catalog_md = metadata.to_map(catalog_entry.metadata)
 
-        bookmark_properties = metadata.to_map(catalog_entry.metadata).get(
-            (), {}).get('replication-key')
+        if catalog_md.get((), {}).get('is-view'):
+            key_properties = catalog_md.get((), {}).get('view-key-properties')
+        else:
+            key_properties = catalog_md.get((), {}).get('table-key-properties')
+        bookmark_properties = catalog_md.get((), {}).get('replication-key')
 
         # Emit a state message to indicate that we've started this stream
         yield singer.StateMessage(value=copy.deepcopy(state))
