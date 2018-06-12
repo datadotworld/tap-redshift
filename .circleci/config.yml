@@ -6,10 +6,6 @@ jobs:
 
     working_directory: /root/tap-redshift
 
-    environment:
-      PRERELEASE_BRANCH: prerelease
-      RELEASE_BRANCH: release
-
     steps:
       - checkout
       - restore_cache:
@@ -27,17 +23,70 @@ jobs:
           paths:
             - .eggs
             - .tox
+      - run:
+          name: build dist
+          command: python setup.py sdist bdist_wheel --universal
+      - store_artifacts:
+          path: ./dist
+          destination: dist
 
+  pypi-release:
+    docker:
+      - image: dataworld/pyenv-tox
+
+    working_directory: /root/tap-redshift
+
+    steps:
+      - checkout
+      - run:
+          name: build dist
+          command: python setup.py sdist bdist_wheel --universal
       - deploy:
-          name: Pre-release to pypi
+          name: pypi release
+          command: twine upload -u $PYPI_USERNAME -p $PYPI_PASSWORD dist/*
+
+  docker-release:
+    docker:
+      - image: dataworld/pyenv-tox
+
+    working_directory: /root/tap-redshift
+
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: define PACKAGE_VERSION
           command: |
-            if [[ "${CIRCLE_BRANCH}" =~ ^(${PRERELEASE_BRANCH})$ ]]; then
-              echo 'Do a prerelease with twine here'
-            fi
+            PACKAGE_VERSION=$(python setup.py -V)
+            echo "export PACKAGE_VERSION=$PACKAGE_VERSION" >> $BASH_ENV
+            source $BASH_ENV
+      - run:
+          name: docker build
+          command: docker build -t dataworld/tap-redshift -t dataworld/tap-redshift:$PACKAGE_VERSION .
       - deploy:
-          name: Release to pypi
+          name: docker-hub release
           command: |
-            if [[ "${CIRCLE_BRANCH}" =~ ^(${RELEASE_BRANCH})$ ]]; then
-              python setup.py sdist bdist_wheel --universal
-              twine upload -u $PYPI_USERNAME -p $PYPI_PASSWORD dist/*
-            fi
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker push dataworld/tap-redshift:latest
+            docker push dataworld/tap-redshift:$PACKAGE_VERSION
+
+workflows:
+  version: 2
+  build-and-release:
+    jobs:
+      - build
+      - pypi-release:
+          filters:
+            branches:
+              only:
+                - release
+          requires:
+            - build
+      - docker-release:
+          filters:
+            branches:
+              only:
+                - release
+          requires:
+            - build
