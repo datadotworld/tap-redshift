@@ -75,11 +75,7 @@ Example:
                 "tap_stream_id": "sample-dbname.public.sample-name",
                 "stream": "sample-stream",
                 "database_name": "sample-dbname",
-                "table_name": "public.sample-name",
-                "is_view": false,
-                "key_properties": [
-                    "id"
-                ],
+                "table_name": "public.sample-name"
                 "schema": {
                     "properties": {
                         "id": {
@@ -113,14 +109,21 @@ Example:
                     {
                         "metadata": {
                             "selected-by-default": false,
-                            "selected": true
+                            "selected": true,
+                            "is-view": false,
+                            "table-key-properties": ["id"],
+                            "schema-name": "sample-stream",
+                            "valid-replication-keys": [
+                                "updated_at"
+                            ]
                         },
                         "breadcrumb": [],
                     },
                     {
                         "metadata": {
                             "selected-by-default": true,
-                            "sql-datatype": "int2"
+                            "sql-datatype": "int2",
+                            "inclusion": "automatic"
                         },
                         "breadcrumb": [
                             "properties",
@@ -130,7 +133,8 @@ Example:
                     {
                         "metadata": {
                             "selected-by-default": true,
-                            "sql-datatype": "varchar"
+                            "sql-datatype": "varchar",
+                            "inclusion": "available"
                         },
                         "breadcrumb": [
                             "properties",
@@ -140,7 +144,8 @@ Example:
                     {
                         "metadata": {
                             "selected-by-default": true,
-                            "sql-datatype": "datetime"
+                            "sql-datatype": "datetime",
+                            "inclusion": "available",
                         },
                         "breadcrumb": [
                             "properties",
@@ -171,7 +176,8 @@ Example:
         {
             "breadcrumb": [],
             "metadata": {
-                "selected-by-default": false
+                "selected-by-default": false,
+                ...
             }
         }
     ]
@@ -187,7 +193,8 @@ Example:
             "breadcrumb": [],
             "metadata": {
                 "selected": true,
-                "selected-by-default": false
+                "selected-by-default": false,
+                ...
             }
         }
     ]
@@ -217,21 +224,24 @@ Incremental replication works in conjunction with a state file to only extract n
 time the tap is invoked i.e continue from the last synced data.
 
 To use incremental replication, we need to add the ``replication_method`` and ``replication_key``
-to the top level under each stream in the ``catalog.json`` file.
+to the streams (tables) metadata in the ``catalog.json`` file.
 
 Example:
 
 .. code-block:: json
 
-    {
-        "streams": [
-            {
-                "replication_method": "INCREMENTAL",
-                "replication_key": "updated_at",
+    "metadata": [
+        {
+            "breadcrumb": [],
+            "metadata": {
+                "selected": true,
+                "selected-by-default": false,
+                "replication-method": "INCREMENTAL",
+                "replication-key": "updated_at",
                 ...
             }
-        ]
-    }
+        }
+    ]
 
 We can then invoke the tap again in sync mode. This time the output will have ``STATE`` messages
 that contains a ``replication_key_value`` and ``bookmark`` for data that were extracted.

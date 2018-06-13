@@ -83,9 +83,7 @@ def column_specs_cursor():
 def expected_catalog_from_db():
     return Catalog.from_dict({'streams': [
         {'tap_stream_id': 'test-db.public.table1',
-         'database_name': 'test-db',
          'table_name': 'public.table1',
-         'key_properties': ['col1'],
          'schema': {
              'properties': {
                  'col1': {
@@ -109,33 +107,39 @@ def expected_catalog_from_db():
                      'format': 'date-time',
                      'type': 'string'}},
              'type': 'object'},
-         'is_view': False,
          'stream': 'table1',
          'metadata': [
              {'breadcrumb': (),
               'metadata': {'selected-by-default': False,
                            'valid-replication-keys': [
-                               'col3', 'col4', 'col5']}},
+                               'col3', 'col4', 'col5'],
+                           'table-key-properties': ['col1'],
+                           'is-view': False,
+                           'schema-name': 'table1',
+                           'database-name': 'test-db'}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'int2'}},
+                           'sql-datatype': 'int2',
+                           'inclusion': 'available'}},
              {'breadcrumb': ('properties', 'col2'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'float8'}},
+                           'sql-datatype': 'float8',
+                           'inclusion': 'available'}},
              {'breadcrumb': ('properties', 'col3'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'timestamptz'}},
+                           'sql-datatype': 'timestamptz',
+                           'inclusion': 'available'}},
              {'breadcrumb': ('properties', 'col4'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'timestamp'}},
+                           'sql-datatype': 'timestamp',
+                           'inclusion': 'available'}},
              {'breadcrumb': ('properties', 'col5'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'timestamp with time zone'}}
+                           'sql-datatype': 'timestamp with time zone',
+                           'inclusion': 'available'}}
          ]},
         {'tap_stream_id': 'test-db.public.table2',
-         'database_name': 'test-db',
          'table_name': 'public.table2',
-         'key_properties': ['col1', 'col2'],
          'schema': {
              'properties': {
                  'col1': {
@@ -148,7 +152,6 @@ def expected_catalog_from_db():
                      'type': ['null', 'boolean']}},
              'type': 'object'
          },
-         'is_view': False,
          'stream': 'table2',
          'metadata': [
              {'breadcrumb': (),
@@ -156,15 +159,20 @@ def expected_catalog_from_db():
                            'forced-replication-method': {
                             'replication-method': 'FULL_TABLE',
                             'reason': 'No replication keys found from table'
-                           }}},
+                           },
+                           'table-key-properties': ['col1', 'col2'],
+                           'is-view': False,
+                           'schema-name': 'table2',
+                           'database-name': 'test-db'}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'int4'}},
+                           'sql-datatype': 'int4',
+                           'inclusion': 'available'}},
              {'breadcrumb': ('properties', 'col2'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'bool'}}]},
+                           'sql-datatype': 'bool',
+                           'inclusion': 'available'}}]},
         {'tap_stream_id': 'test-db.public.view1',
-         'database_name': 'test-db',
          'table_name': 'public.view1',
          'schema': {
              'properties': {
@@ -175,7 +183,6 @@ def expected_catalog_from_db():
                      'inclusion': 'unsupported',
                      'description': 'Unsupported column type unknown'}},
              'type': 'object'},
-         'is_view': True,
          'stream': 'view1',
          'metadata': [
              {'breadcrumb': (),
@@ -183,13 +190,19 @@ def expected_catalog_from_db():
                            'forced-replication-method': {
                             'replication-method': 'FULL_TABLE',
                             'reason': 'No replication keys found from table'
-                           }}},
+                           },
+                           'view-key-properties': [],
+                           'is-view': True,
+                           'schema-name': 'view1',
+                           'database-name': 'test-db'}},
              {'breadcrumb': ('properties', 'col1'),
               'metadata': {'selected-by-default': True,
-                           'sql-datatype': 'varchar'}},
+                           'sql-datatype': 'varchar',
+                           'inclusion': 'available'}},
              {'breadcrumb': ('properties', 'col2'),
               'metadata': {'selected-by-default': False,
-                           'sql-datatype': 'unknown'}}
+                           'sql-datatype': 'unknown',
+                           'inclusion': 'unsupported'}}
          ]}
     ]})
 
