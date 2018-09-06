@@ -47,7 +47,7 @@ setup(
       py_modules=['tap-redshift'],
       packages=find_packages(),
       install_requires=[
-        'attrs==17.2.0',
+        'attrs==18.2.0',
         'pendulum==1.2.0',
         'singer-python==5.0.4',
         'backoff==1.3.2',
