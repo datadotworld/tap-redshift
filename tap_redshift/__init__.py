@@ -36,7 +36,7 @@ from singer.schema import Schema
 
 from tap_redshift import resolve
 
-__version__ = '1.0.0b8'
+__version__ = '1.0.0b9'
 
 LOGGER = singer.get_logger()
 
@@ -277,6 +277,8 @@ def get_stream_version(tap_stream_id, state):
 def row_to_record(catalog_entry, version, row, columns, time_extracted):
     row_to_persist = ()
     for idx, elem in enumerate(row):
+        if isinstance(elem, datetime.date):
+            elem = elem.isoformat('T') + 'Z'
         row_to_persist += (elem,)
     return singer.RecordMessage(
         stream=catalog_entry.stream,
@@ -307,8 +309,8 @@ def sync_table(connection, catalog_entry, state):
         params = {}
 
         if start_date is not None:
-            formatted_start_date = str(datetime.datetime.strptime(
-                start_date, '%Y-%m-%dT%H:%M:%SZ'))
+            formatted_start_date = datetime.datetime.strptime(
+                start_date, '%Y-%m-%dT%H:%M:%SZ').astimezone()
 
         replication_key = metadata.to_map(catalog_entry.metadata).get(
             (), {}).get('replication-key')
@@ -341,7 +343,7 @@ def sync_table(connection, catalog_entry, state):
                 state,
                 tap_stream_id,
                 'replication_key_value'
-            ) or formatted_start_date
+            ) or formatted_start_date.isoformat()
 
         if replication_key_value is not None:
             entry_schema = catalog_entry.schema
