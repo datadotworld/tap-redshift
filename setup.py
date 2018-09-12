@@ -59,7 +59,7 @@ setup(
       tests_require=[
         'pytest-mock>=1.6.3',
         'mock>=2.0.0',
-        'coverage>=4.4.2',
+        'coverage>=4.5.1',
         'doublex>=1.8.4,<2.0a',
         'flake8>=2.6.0,<3.4.1a',
         'pyhamcrest>=1.9.0,<2.0a',
