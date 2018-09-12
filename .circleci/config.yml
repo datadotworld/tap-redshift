@@ -10,7 +10,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - tox_cache-v1-{{ checksum "tox.ini" }}
+            - tox_cache-{{ checksum "tox.ini" }}
       - run:
           name: pyenv setup
           command: |
