@@ -278,7 +278,7 @@ def row_to_record(catalog_entry, version, row, columns, time_extracted):
     row_to_persist = ()
     for idx, elem in enumerate(row):
         if isinstance(elem, datetime.date):
-            elem = elem.isoformat('T') + 'Z'
+            elem = elem.isoformat(sep='T') + 'Z'
         row_to_persist += (elem,)
     return singer.RecordMessage(
         stream=catalog_entry.stream,
