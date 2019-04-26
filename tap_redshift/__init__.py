@@ -277,7 +277,7 @@ def get_stream_version(tap_stream_id, state):
 def row_to_record(catalog_entry, version, row, columns, time_extracted):
     row_to_persist = ()
     for idx, elem in enumerate(row):
-        if isinstance(elem, datetime.date):
+        if isinstance(elem, datetime.datetime):
             elem = elem.isoformat('T') + 'Z'
         row_to_persist += (elem,)
     return singer.RecordMessage(
