@@ -282,7 +282,7 @@ For subsequent runs, you can then invoke the incremental replication passing the
         -c config-redshift.json \
         --catalog catalog.json \
 	    -s latest-state.json | \
-	        target-datadotworld -c config-dw.json > state.json
+                target-datadotworld -c config-dw.json > state.json
 
 
 All steps in one Makefile
@@ -318,3 +318,7 @@ This example uses ``target-datadotworld`` but can be modified to use any other S
           --catalog catalog.json \
           -s latest-state.json | \
             target-datadotworld -c config-dw.json > state.json
+
+---
+
+Copyright &copy; 2019 Stitch
