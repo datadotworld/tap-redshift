@@ -53,41 +53,35 @@ CONFIG = {}
 def discover_catalog(conn, db_schema):
     '''Returns a Catalog describing the structure of the database.'''
 
-    table_spec = select_all(
-        conn,
-        """
-        SELECT table_name, table_type
-        FROM INFORMATION_SCHEMA.Tables
-        WHERE table_schema = '{}'
-        """.format(db_schema))
+    query_params = (db_schema,)
 
-    column_specs = select_all(
-        conn,
-        """
-        SELECT c.table_name, c.ordinal_position, c.column_name, c.udt_name,
-        c.is_nullable
-        FROM INFORMATION_SCHEMA.Tables t
-        JOIN INFORMATION_SCHEMA.Columns c ON c.table_name = t.table_name
-        WHERE t.table_schema = '{}'
-        ORDER BY c.table_name, c.ordinal_position
-        """.format(db_schema))
+    table_query = """SELECT table_name, table_type
+                       FROM INFORMATION_SCHEMA.Tables
+                      WHERE table_schema = %s"""
 
-    pk_specs = select_all(
-        conn,
-        """
-        SELECT kc.table_name, kc.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kc
-            ON kc.table_name = tc.table_name AND
-               kc.table_schema = tc.table_schema AND
-               kc.constraint_name = tc.constraint_name
-        WHERE tc.constraint_type = 'PRIMARY KEY' AND
-              tc.table_schema = '{}'
-        ORDER BY
-          tc.table_schema,
-          tc.table_name,
-          kc.ordinal_position
-        """.format(db_schema))
+    table_specs = select_all(conn, table_query, query_params)
+
+    column_query = """SELECT c.table_name, c.ordinal_position, c.column_name,
+                             c.udt_name, c.is_nullable
+                        FROM INFORMATION_SCHEMA.Tables t
+                        JOIN INFORMATION_SCHEMA.Columns c
+                          ON c.table_name = t.table_name
+                       WHERE t.table_schema = %s
+                    ORDER BY c.table_name, c.ordinal_position"""
+
+    column_specs = select_all(conn, column_query, query_params)
+
+    pk_query = """SELECT kc.table_name, kc.column_name
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kc
+                      ON kc.table_name = tc.table_name
+                     AND kc.table_schema = tc.table_schema
+                     AND kc.constraint_name = tc.constraint_name
+                   WHERE tc.constraint_type = 'PRIMARY KEY'
+                     AND tc.table_schema = %s
+                ORDER BY tc.table_schema, tc.table_name, kc.ordinal_position"""
+
+    pk_specs = select_all(conn, pk_query, query_params)
 
     entries = []
     table_columns = [{'name': k, 'columns': [
@@ -241,9 +235,9 @@ def open_connection(config):
     return connection
 
 
-def select_all(conn, query):
+def select_all(conn, query, params):
     cur = conn.cursor()
-    cur.execute(query)
+    cur.execute(query, params)
     column_specs = cur.fetchall()
     cur.close()
     return column_specs
