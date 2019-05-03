@@ -319,6 +319,27 @@ This example uses ``target-datadotworld`` but can be modified to use any other S
           -s latest-state.json | \
             target-datadotworld -c config-dw.json > state.json
 
+
+Development Notes
+-----------------
+
+`start_date` takes the format `'%Y-%m-%dT%H:%M:%SZ'`. There was an issue in the `sync_table()` function where we do:
+
+```
+formatted_date_time = datetime.datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%SZ').astimezone()
+```
+
+The intent of this line is not clear and errors. The current fix is to do:
+```
+formatted_date_time = datetime.datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=pytz.UTC)
+```
+This takes the naive datetime and makes it an aware datetime with UTC as the timezone.
+
+If UTC is the correct move here, we should swap this call out for the equivalent `singer-python` call:
+```
+formatted_date_time = singer.utils.strptime_to_utc(start_date)
+```
+
 ---
 
 Copyright &copy; 2019 Stitch
