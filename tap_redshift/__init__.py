@@ -48,18 +48,20 @@ REQUIRED_CONFIG_KEYS = [
     'password',
     'start_date'
 ]
-
 STRING_TYPES = {'char', 'character', 'nchar', 'bpchar', 'text', 'varchar',
                 'character varying', 'nvarchar'}
 
 BYTES_FOR_INTEGER_TYPE = {
     'int2': 2,
+    'smallint': 2,
     'int': 4,
     'int4': 4,
-    'int8': 8
+    'integer': 4,
+    'int8': 8,
+    'bigint': 8
 }
 
-FLOAT_TYPES = {'float', 'float4', 'float8'}
+FLOAT_TYPES = {'float', 'float4', 'float8', 'double precision', 'real'}
 
 DATE_TYPES = {'date'}
 
@@ -89,8 +91,6 @@ def discover_catalog(conn, db_schema):
         ORDER BY table_name, ordinal_position
         """.format(db_schema))
 
-    LOGGER.info(column_specs)
-
     pk_specs = select_all(
         conn,
         """
@@ -108,8 +108,7 @@ def discover_catalog(conn, db_schema):
           table_name,
           a.attnum;
         """.format(db_schema))
-    LOGGER.info("pk_specs: ")
-    LOGGER.info(pk_specs)
+    
     entries = []
     table_columns = [{'name': k, 'columns': [
         {'pos': t[1], 'name': t[2], 'type': t[3],
@@ -118,8 +117,7 @@ def discover_catalog(conn, db_schema):
 
     table_pks = {k: [t[1] for t in v]
                  for k, v in groupby(pk_specs, key=lambda t: t[0])}
-    LOGGER.info("PKs are: ")
-    LOGGER.info(table_pks)
+
     table_types = dict(table_spec)
 
     for items in table_columns:
