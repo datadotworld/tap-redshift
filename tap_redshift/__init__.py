@@ -95,7 +95,6 @@ def discover_catalog(conn, db_schema):
         conn,
         """
         SELECT
-          n.nspname AS schema_name,
           c.relname AS table_name,
           a.attname AS column_name
         FROM
@@ -103,9 +102,9 @@ def discover_catalog(conn, db_schema):
           JOIN pg_catalog.pg_class AS c ON c.oid = con.conrelid
           JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid AND a.attnum = ANY(con.conkey)
           JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
-        WHERE schema_name = '{}' AND contype IN ('p')
+        WHERE n.nspname = '{}' AND contype IN ('p')
         ORDER BY
-          schema_name,
+          n.nspname,
           table_name,
           a.attnum;
         """.format(db_schema))
