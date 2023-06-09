@@ -89,6 +89,8 @@ def discover_catalog(conn, db_schema):
         ORDER BY table_name, ordinal_position
         """.format(db_schema))
 
+    LOGGER.info(column_specs)
+
     pk_specs = select_all(
         conn,
         """
