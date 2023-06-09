@@ -76,19 +76,17 @@ def discover_catalog(conn, db_schema):
         conn,
         """
         SELECT table_name, table_type
-        FROM INFORMATION_SCHEMA.Tables
+        FROM SVV_TABLES
         WHERE table_schema = '{}'
         """.format(db_schema))
 
     column_specs = select_all(
         conn,
         """
-        SELECT c.table_name, c.ordinal_position, c.column_name, c.udt_name,
-        c.is_nullable
-        FROM INFORMATION_SCHEMA.Tables t
-        JOIN INFORMATION_SCHEMA.Columns c ON c.table_name = t.table_name
-        WHERE t.table_schema = '{}'
-        ORDER BY c.table_name, c.ordinal_position
+        SELECT table_name, ordinal_position, column_name, data_type, is_nullable
+        FROM SVV_COLUMNS
+        WHERE table_schema = '{}'
+        ORDER BY table_name, ordinal_position
         """.format(db_schema))
 
     pk_specs = select_all(
