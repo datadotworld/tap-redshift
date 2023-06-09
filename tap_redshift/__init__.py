@@ -109,8 +109,8 @@ def discover_catalog(conn, db_schema):
           table_name,
           a.attnum;
         """.format(db_schema))
-    print("pk_specs: ")
-    print(pk_specs)
+    LOGGER.info("pk_specs: ")
+    LOGGER.info(pk_specs)
     entries = []
     table_columns = [{'name': k, 'columns': [
         {'pos': t[1], 'name': t[2], 'type': t[3],
@@ -119,8 +119,8 @@ def discover_catalog(conn, db_schema):
 
     table_pks = {k: [t[1] for t in v]
                  for k, v in groupby(pk_specs, key=lambda t: t[0])}
-    print("PKs are: ")
-    print(table_pks)
+    LOGGER.info("PKs are: ")
+    LOGGER.info(table_pks)
     table_types = dict(table_spec)
 
     for items in table_columns:
