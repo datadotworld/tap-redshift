@@ -94,18 +94,20 @@ def discover_catalog(conn, db_schema):
     pk_specs = select_all(
         conn,
         """
-        SELECT kc.table_name, kc.column_name
-        FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kc
-            ON kc.table_name = tc.table_name AND
-               kc.table_schema = tc.table_schema AND
-               kc.constraint_name = tc.constraint_name
-        WHERE tc.constraint_type = 'PRIMARY KEY' AND
-              tc.table_schema = '{}'
+        SELECT
+          n.nspname AS schema_name,
+          c.relname AS table_name,
+          a.attname AS column_name
+        FROM
+          pg_catalog.pg_constraint AS con
+          JOIN pg_catalog.pg_class AS c ON c.oid = con.conrelid
+          JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid AND a.attnum = ANY(con.conkey)
+          JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE schema_name in {} contype IN ('p')
         ORDER BY
-          tc.table_schema,
-          tc.table_name,
-          kc.ordinal_position
+          schema_name,
+          table_name,
+          a.attnum;
         """.format(db_schema))
 
     entries = []
